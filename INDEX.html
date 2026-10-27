@@ -1,0 +1,1533 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Πλημμυρικός κίνδυνος Δήμου Τρικκαίων v0.39</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#0d2b45; --ink-2:#38526b; --muted:#667f96;
+  --paper:#e8eef3; --surface:#ffffff; --wash:#f2f6f9; --wash-2:#e4ecf2;
+  --line:#d5e0e9; --line-strong:#b6c7d6;
+  --water:#1b6fae; --water-deep:#0b4a7d; --water-soft:#dcecf8;
+  --ok:#2f855a; --amber:#c99a06; --warn:#e07020; --danger:#b42318;
+  --font:"IBM Plex Sans","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:var(--font);font-size:14px;line-height:1.5;background:var(--paper);color:var(--ink)}
+a{color:var(--water-deep)}
+a:hover{color:var(--water)}
+:focus-visible{outline:2px solid var(--water);outline-offset:2px;border-radius:4px}
+small,.muted{color:var(--muted);font-size:12px;line-height:1.45}
+code{font-size:11.5px;background:var(--wash-2);padding:1px 5px;border-radius:4px}
+
+/* ---------- Κεφαλίδα ---------- */
+.top{background:var(--ink);color:#fff}
+.top-in{max-width:1640px;margin:auto;padding:14px 20px;display:flex;gap:20px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.brand{display:flex;gap:14px;align-items:center;min-width:0}
+.brand svg{flex:none}
+.brand h1{font-size:20px;line-height:1.2;margin:0;font-weight:600;letter-spacing:.005em}
+.brand p{margin:3px 0 0;font-size:12.5px;color:#a9c4dc}
+.top-right{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.proto{font-size:11.5px;color:#a9c4dc;border:1px solid #2f5273;border-radius:6px;padding:5px 9px}
+#alertPill{display:none!important}
+.pill{border-radius:20px;padding:5px 11px;font-size:12px;font-weight:500;white-space:nowrap}
+
+/* Δείκτης επιπέδου συναγερμού (σαν κλίμακα στάθμης) */
+.gauge{display:flex;flex-direction:column;gap:5px;min-width:230px}
+.gauge-label{font-size:12px;color:#a9c4dc;display:flex;justify-content:space-between;gap:10px}
+.gauge-label b{color:#fff;font-weight:600}
+.gauge-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
+.gauge-seg{height:22px;border-radius:3px;background:#1c4163;display:flex;align-items:flex-end;justify-content:flex-start;padding:0 0 2px 6px;font-size:10.5px;color:#7f9db8;font-weight:600;transition:background .25s}
+.gauge-seg[data-n="1"].on{background:var(--ok);color:#fff}
+.gauge-seg[data-n="2"].on{background:var(--amber);color:#fff}
+.gauge-seg[data-n="3"].on{background:var(--warn);color:#fff}
+.gauge-seg[data-n="4"].on{background:var(--danger);color:#fff}
+
+/* ---------- Λωρίδα πλαισίου ---------- */
+.facts{max-width:1640px;margin:auto;padding:12px 20px 0;display:flex;gap:10px 34px;flex-wrap:wrap;align-items:baseline}
+.fact{display:flex;gap:8px;align-items:baseline;font-size:13px;color:var(--ink-2)}
+.fact b{font-size:17px;color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.note{max-width:1640px;margin:10px auto 0;padding:0 20px}
+.note details{background:#fff9ea;border:1px solid #efd9a0;border-radius:10px;padding:9px 13px;font-size:12.5px;line-height:1.5;color:#59460a}
+.note summary{cursor:pointer;font-weight:600}
+.note p{margin:7px 0 0}
+
+/* ---------- Διάταξη ---------- */
+main{max-width:1640px;margin:auto;padding:12px 20px 18px}
+.layout{display:grid;grid-template-columns:392px minmax(0,1fr);gap:14px;align-items:start}
+.side{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;position:sticky;top:12px;max-height:calc(100vh - 24px);display:flex;flex-direction:column}
+.mapcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;position:sticky;top:12px}
+
+/* Καρτέλες */
+.tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--wash);border-bottom:1px solid var(--line);flex:none;z-index:5}
+.tab{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:11px 4px 9px;font:inherit;font-size:12.5px;font-weight:500;color:var(--ink-2);cursor:pointer;white-space:nowrap;text-align:center;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.tab:hover{background:var(--wash-2)}
+.tab[aria-selected="true"]{color:var(--water-deep);border-bottom-color:var(--water);background:var(--surface);font-weight:700}
+.pane{padding:16px 16px 20px;overflow-y:auto;flex:1 1 auto}
+.pane[hidden]{display:none!important}
+.pane h2{font-size:16px;margin:0 0 4px;font-weight:600}
+.pane h3{font-size:13.5px;margin:20px 0 6px;font-weight:600;color:var(--ink)}
+.lead{margin:0 0 14px;color:var(--ink-2);font-size:13px}
+.group{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.group:first-of-type{margin-top:0;padding-top:0;border-top:0}
+
+/* Στοιχεία φόρμας και κουμπιά */
+label{display:flex;gap:9px;align-items:flex-start;font-size:13px;margin:8px 0;line-height:1.4;cursor:pointer}
+input[type=checkbox]{margin:2px 0 0;accent-color:var(--water);width:15px;height:15px;flex:none}
+.sub{margin:-3px 0 9px 24px;display:block}
+button{font:inherit;font-size:12.5px;border:1px solid var(--line-strong);background:var(--surface);border-radius:8px;padding:7px 11px;cursor:pointer;color:var(--ink)}
+button:hover{background:var(--wash)}
+button.primary{background:var(--water);border-color:var(--water);color:#fff}
+button.primary:hover{background:var(--water-deep)}
+.inp,select{font:inherit;font-size:12.5px;padding:7px 9px;border:1px solid var(--line-strong);border-radius:8px;background:#fff;color:var(--ink)}
+.row{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;flex:none;position:relative;top:1px}
+
+/* Σκάλα σεναρίων */
+.ladder{display:grid;gap:8px;margin:2px 0 10px}
+.scn{display:grid;grid-template-columns:78px 1fr;gap:0 12px;text-align:left;align-items:center;padding:11px 12px;border:1px solid var(--line-strong);border-left-width:6px;border-radius:10px;background:var(--surface);outline-offset:2px}
+.scn .t{grid-row:1/3;font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
+.scn .n{font-weight:600;font-size:13.5px}
+.scn .p{font-size:12px;color:var(--muted)}
+.scn.s1{border-left-color:var(--water)}
+.scn.s2{border-left-color:var(--amber)}
+.scn.s3{border-left-color:var(--danger);border-left-width:10px;background:#fdf4f3}
+.scn:hover{background:var(--wash)}
+.scn.s3:hover{background:#fbe9e7}
+.keyline{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin:2px 0 8px;color:var(--ink-2)}
+.status{margin:10px 0 0;font-size:12.5px;color:var(--ink-2)}
+.callout{margin-top:12px;padding:9px 11px;background:var(--wash);border-left:3px solid var(--line-strong);border-radius:0 8px 8px 0;font-size:12px;line-height:1.5;color:var(--ink-2)}
+
+/* Πίνακες */
+.tbl{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.tbl th{background:var(--wash);text-align:left;font-weight:600;padding:5px 6px;color:var(--ink-2)}
+.tbl th:not(:first-child),.tbl td.n{text-align:right}
+.tbl td{padding:5px 6px;border-bottom:1px solid var(--line)}
+.tbl td.n{font-weight:600}
+.tbl-scroll{max-height:310px;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:10px}
+.tbl-scroll table{font-size:11.5px}
+
+/* Αναδιπλούμενα τμήματα (επιχειρησιακή εικόνα) */
+details.acc{border-top:1px solid var(--line);padding:2px 0}
+details.acc:first-of-type{border-top:0}
+details.acc>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:10px 0;font-weight:600;font-size:13.5px}
+details.acc>summary::-webkit-details-marker{display:none}
+details.acc>summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s;flex:none;margin:0 3px 0 2px}
+details.acc[open]>summary::before{transform:rotate(45deg)}
+details.acc>div.body{padding:0 0 14px 20px}
+
+/* Χάρτης */
+.maphead{padding:11px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.maphead strong{font-size:15px;font-weight:600}
+.maptools{display:flex;gap:6px;flex-wrap:wrap}
+#map{height:clamp(520px,calc(100vh - 190px),860px);width:100%;background:#dfe9ef}
+.legendbar{display:flex;gap:6px 16px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-2);background:var(--wash)}
+.legendbar span{display:inline-flex;align-items:center}
+.river-key{display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px}
+.river-label{background:transparent!important;border:0!important}
+.leaflet-popup-content{font-family:var(--font);font-size:13px;line-height:1.45}
+.leaflet-popup-content p{margin:6px 0}
+.tag{display:inline-block;padding:2px 7px;border-radius:5px;background:var(--wash-2);font-size:11px;color:var(--ink-2)}
+
+/* Τμήμα Daniel και στοιχεία */
+.daniel{background:#fdf3f2;border:1px solid #efcbc7;border-radius:10px;padding:11px 12px}
+.daniel .tbl td{border-bottom-color:#f0d6d3}
+.daniel h4,.info h4{margin:12px 0 3px;font-size:12.5px;font-weight:600;color:#7a1f1f}
+.info{background:var(--wash);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+.info h4{color:var(--ink)}
+.t-card{padding:9px 11px;border-radius:8px;margin-bottom:7px;font-size:12.5px;line-height:1.5}
+
+footer{max-width:1640px;margin:auto;font-size:11.5px;color:var(--muted);padding:2px 20px 22px}
+
+@media(max-width:1000px){
+  .layout{grid-template-columns:1fr}
+  .mapcard{order:1;position:static}
+  .side{order:2;position:static;max-height:none}
+  .pane{overflow:visible}
+  #map{height:clamp(420px,62vh,640px)}
+}
+@media(max-width:560px){
+  .top-in{padding:12px}
+  .brand h1{font-size:17px}
+  .gauge{min-width:100%}
+  main,.facts,.note,footer{padding-left:10px;padding-right:10px}
+  .fact b{font-size:15px}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+ <div class="top-in">
+  <div class="brand">
+   <svg width="38" height="38" viewBox="0 0 38 38" aria-hidden="true"><rect width="38" height="38" rx="9" fill="#1b6fae"/><path d="M19 7c4.6 6 7.6 9.4 7.6 13.3A7.6 7.6 0 0 1 19 28a7.6 7.6 0 0 1-7.6-7.7C11.4 16.4 14.4 13 19 7z" fill="#fff"/><path d="M13 31.5c2-1.3 3.4-1.3 5.2 0 1.9 1.3 3.2 1.3 5.1 0 1.5-1.1 2.8-1.2 4.7-.2" fill="none" stroke="#9fd0f2" stroke-width="1.6" stroke-linecap="round"/></svg>
+   <div>
+    <h1>Πλημμυρικός κίνδυνος Δήμου Τρικκαίων</h1>
+    <p>Πόλη, χωριά και ποτάμια, με τις επίσημες ζώνες κατάκλυσης του ΥΠΕΝ</p>
+   </div>
+  </div>
+  <div class="top-right">
+   <div class="gauge" aria-live="polite">
+    <div class="gauge-label"><span>Επίπεδο συναγερμού</span><b id="gaugeText">δεν έχει οριστεί</b></div>
+    <div class="gauge-bar" id="gaugeBar"><div class="gauge-seg" data-n="1">1</div><div class="gauge-seg" data-n="2">2</div><div class="gauge-seg" data-n="3">3</div><div class="gauge-seg" data-n="4">4</div></div>
+   </div>
+   <div class="pill" id="alertPill" style="display:none"></div>
+   <div class="proto">Πρότυπο v0.39 · όχι επιχειρησιακό σύστημα</div>
+  </div>
+ </div>
+</header>
+
+<div class="facts">
+ <div class="fact"><b>4</b> ποτάμια: Πηνειός, Ληθαίος, Πάμισος, Αγιαμονιώτης</div>
+ <div class="fact"><b>~120</b> σημεία · άξονες διαφυγής · αναζήτηση · ημερολόγιο · GeoJSON</div>
+ <div class="fact"><b>3</b> σενάρια ΥΠΕΝ: Τ=50, 100, 1000</div>
+ <div class="fact"><b>78.605</b> κάτοικοι Δήμου (ΕΛΣΤΑΤ 2021)</div>
+</div>
+<div class="note">
+ <details>
+  <summary>Τι δείχνει και τι δεν δείχνει αυτό το εργαλείο</summary>
+  <p>Καλύπτει τον Δήμο Τρικκαίων (πόλη και χωριά) και τα κύρια υδατορρεύματα. Χρησιμοποιεί υπόβαθρο Esri και τα επίσημα επίπεδα WMS του ΥΠΕΝ (ΣΔΚΠ EL08) από <code>gis.floods.ypeka.gr</code>. Τα σημεία υποδομών και χωριών είναι <b>ενδεικτικά</b> και χρειάζονται επαλήθευση συντεταγμένων. Ζωντανά δεδομένα μοντέλου: βροχόπτωση και παροχή ποταμού (Open-Meteo / GloFAS). Παρατηρήσεις ΕΑΑ: <a href="https://stratus.meteo.noa.gr/meteoscope/thessaly" target="_blank" rel="noopener">MeteoScope Θεσσαλίας</a>. Παρατηρούμενη στάθμη: τηλεμετρικό σύστημα Δήμου / <a href="https://www.meteolive.gr/p/rivers.html" target="_blank" rel="noopener">meteolive.gr</a> (χωρίς ανοιχτό API). Δρόμοι, νοσοκομείο, αντλιοστάσια και επίπεδο συναγερμού καταχωρούνται <b>χειροκίνητα</b>.</p>
+ </details>
+</div>
+
+<main>
+ <div class="layout">
+
+  <aside class="side">
+   <div class="tabs" role="tablist" aria-label="Ενότητες">
+    <button class="tab" role="tab" data-tab="scen" type="button" aria-selected="true">Σενάρια</button>
+    <button class="tab" role="tab" data-tab="ops" type="button" aria-selected="false">Επιχειρ.</button>
+    <button class="tab" role="tab" data-tab="layers" type="button" aria-selected="false">Επίπεδα</button>
+    <button class="tab" role="tab" data-tab="info" type="button" aria-selected="false">Στοιχεία</button>
+   </div>
+
+   <!-- ============ Σενάρια ============ -->
+   <section class="pane" id="pane-scen" role="tabpanel">
+    <div id="scenarioSection">
+     <h2>Σενάρια πλημμύρας</h2>
+     <p class="lead">Ένα κλικ ενεργοποιεί τα επίσημα επίπεδα του ΥΠΕΝ και ελέγχει ποια σημεία του χάρτη πέφτουν μέσα στις ζώνες κατάκλυσης. Δεν υπάρχουν δικές μας εκτιμήσεις ζώνης.</p>
+     <div class="ladder" id="scnButtons">
+      <button type="button" class="scn s1" data-t="50"><span class="t">Τ=50</span><span class="n">Συχνό σενάριο</span><span class="p">πιθανότητα ~2% ανά έτος</span></button>
+      <button type="button" class="scn s2" data-t="100"><span class="t">Τ=100</span><span class="n">Σενάριο σχεδιασμού</span><span class="p">πιθανότητα ~1% ανά έτος</span></button>
+      <button type="button" class="scn s3" data-t="1000" data-severe="1"><span class="t">Τ=1000</span><span class="n">Σοβαρή πλημμύρα</span><span class="p">πιθανότητα ~0,1% ανά έτος· όρια, μέγιστο βάθος και ζώνη APSFR003</span></button>
+     </div>
+     <div class="row">
+      <button type="button" id="scnCompare" class="primary">Σύγκριση των 3 σεναρίων</button>
+      <button type="button" id="scnClear">Καθαρισμός</button>
+     </div>
+     <label style="margin-top:14px"><input type="checkbox" id="haloToggle" checked> <span>Σημεία πιθανής κατάκλυσης στον χάρτη</span></label>
+     <div class="keyline">
+      <span><span class="dot" style="background:#b42318"></span>εντός ζώνης ήδη από Τ=50</span>
+      <span><span class="dot" style="background:#e87524"></span>από Τ=100</span>
+      <span><span class="dot" style="background:#d4a017"></span>μόνο Τ=1000</span>
+     </div>
+     <div id="scnStatus" class="status">Επίλεξε σενάριο για να εμφανιστούν οι ζώνες και να ελεγχθούν τα σημεία.</div>
+     <div id="scnTable"></div>
+     <div class="callout">Το «εκτός ζώνης» σημαίνει ότι το μοντέλο του ΥΠΕΝ δεν δείχνει κατάκλυση στη θέση του σημείου, όχι ότι το σημείο είναι ασφαλές. Οι θέσεις πολλών σημείων είναι ενδεικτικές. Τα Τ είναι σενάρια επικινδυνότητας, όχι πρόβλεψη για συγκεκριμένη ημερομηνία. Για επιχειρησιακή χρήση απαιτείται επαλήθευση.</div>
+    </div>
+
+    <h3>Τι σημαίνει κάθε σενάριο</h3>
+    <div class="t-card" style="background:#e9f2fa"><b>Τ=50.</b> Συχνότερο σενάριο. Έλεγξε τα χαμηλά σημεία της πόλης, τις γέφυρες του Ληθαίου και τους πεδινούς οικισμούς (Μεγάλα Καλύβια κ.ά.).</div>
+    <div class="t-card" style="background:#fdf5df"><b>Τ=100.</b> Ευρύτερη κατάκλυση. Προτεραιότητα στην πρόσβαση σε νοσοκομείο, πυροσβεστική και κρίσιμους δρόμους.</div>
+    <div class="t-card" style="background:#fbe7e5"><b>Τ=1000.</b> Ακραίο σενάριο, μέγιστη έκταση ζωνών. Σχεδιασμός εκκένωσης και συνέχειας κρίσιμων υπηρεσιών.</div>
+   </section>
+
+   <!-- ============ Επιχειρησιακή εικόνα ============ -->
+   <section class="pane" id="pane-ops" role="tabpanel" hidden>
+    <div id="opsSection">
+     <h2>Επιχειρησιακή εικόνα</h2>
+     <p class="lead">Ό,τι δεν έχει επίσημη ζωντανή πηγή καταχωρείται χειροκίνητα και αποθηκεύεται στον περιηγητή σου, όχι σε κοινή βάση. Το επίπεδο συναγερμού δεν υπολογίζεται αυτόματα.</p>
+
+     <details class="acc" open>
+      <summary>Επίπεδο συναγερμού και ενέργειες</summary>
+      <div class="body">
+       <div id="lvlButtons" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
+       <div id="lvlActions" style="margin-top:10px;font-size:12.5px;line-height:1.45"></div>
+       <small style="display:block;margin-top:6px">Ενδεικτικός κατάλογος ενεργειών. Κάθε τσεκ αποθηκεύει ώρα. Να προσαρμοστεί στο Σχέδιο Πολιτικής Προστασίας του Δήμου· δεν είναι επίσημη κλίμακα.</small>
+       <button type="button" id="lvlReset" style="margin-top:8px">Μηδενισμός επιλογών</button>
+      </div>
+     </details>
+
+     <details class="acc">
+      <summary>Ημερολόγιο ενεργειών</summary>
+      <div class="body">
+       <div class="row" style="margin-bottom:8px">
+        <input id="logText" class="inp" placeholder="Περιγραφή ενέργειας…" style="flex:1 1 160px;min-width:0">
+        <button type="button" id="logAdd" class="primary">Καταχώριση</button>
+       </div>
+       <div id="logList" style="font-size:12px;max-height:180px;overflow:auto"></div>
+       <button type="button" id="logClear" style="margin-top:6px">Καθαρισμός ημερολογίου</button>
+      </div>
+     </details>
+
+     <details class="acc" open>
+      <summary>Ζωντανά δεδομένα μοντέλου</summary>
+      <div class="body">
+       <button type="button" id="liveBtn" class="primary">Ανανέωση τώρα (βροχή + παροχή)</button>
+       <div id="liveStatus" class="muted" style="margin-top:6px;font-size:12px">Πατήστε για φόρτωση.</div>
+
+       <h4 style="margin:12px 0 4px;font-size:12.5px">Βροχόπτωση (Open-Meteo)</h4>
+       <div id="rainOut" class="muted">Δεν έχει φορτωθεί.</div>
+
+       <h4 style="margin:14px 0 4px;font-size:12.5px">Παροχή ποταμού — μοντέλο GloFAS (Open-Meteo Flood)</h4>
+       <div id="dischargeOut" class="muted">Δεν έχει φορτωθεί.</div>
+       <small style="display:block;margin-top:6px">Η παροχή είναι <b>προσομοίωση</b> σε ανάλυση ~5 km (όχι μέτρηση σταθμού). Χρήσιμη για τάση, όχι για απόλυτη στάθμη. Επίσημες μετρήσεις στάθμης: <a href="https://www.meteolive.gr/p/rivers.html" target="_blank" rel="noopener">meteolive ↗</a> και <a href="https://hydro-stations.hcmr.gr/thessaly-water-level/" target="_blank" rel="noopener">ΕΛΚΕΘΕ ↗</a>. Προειδοποιήσεις: <a href="https://www.emy.gr/" target="_blank" rel="noopener">ΕΜΥ ↗</a>, <a href="https://www.meteo.gr/" target="_blank" rel="noopener">meteo.gr ↗</a>.</small>
+
+       <h4 style="margin:14px 0 4px;font-size:12.5px">Παρατηρήσεις ΕΑΑ — MeteoScope Θεσσαλίας</h4>
+       <div class="t-card" style="background:#eef6ff;padding:8px 10px;border-radius:8px;margin-top:4px">
+         <p style="margin:0 0 6px;font-size:12px">Ζωντανός χάρτης παρατηρήσεων / σταθμών του <b>Εθνικού Αστεροσκοπείου Αθηνών</b> για τη Θεσσαλία (θερμοκρασία, βροχή, άνεμος κ.ά.).</p>
+         <a href="https://stratus.meteo.noa.gr/meteoscope/thessaly" target="_blank" rel="noopener" style="display:inline-block;padding:6px 12px;background:#1d4ed8;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">Άνοιγμα MeteoScope Θεσσαλίας ↗</a>
+         <small style="display:block;margin-top:6px;color:#475569">Δεν ενσωματώνεται API (web εφαρμογή ΕΑΑ). Χρήσιμο για έλεγχο πραγματικών μετρήσεων σταθμών στην περιοχή Τρικάλων.</small>
+       </div>
+      </div>
+     </details>
+
+     <details class="acc">
+      <summary>Στάθμη ποταμού</summary>
+      <div class="body">
+       <div style="background:#e8f4fc;border:1px solid #a8d0eb;border-radius:8px;padding:10px 12px;margin-bottom:10px">
+        <b style="font-size:13px">Ζωντανή στάθμη — Δήμος Τρικκαίων / meteolive</b>
+        <div style="font-size:12.5px;line-height:1.6;margin-top:4px">
+         <a href="https://www.meteolive.gr/p/rivers.html" target="_blank" rel="noopener"><b>Τηλεμετρικό σύστημα στάθμης ποταμών ↗</b></a><br>
+         <span class="muted">LIVE · Δήμος Τρικκαίων · κάντε κλικ για αναλυτικά δεδομένα ανά περιοχή</span>
+        </div>
+       </div>
+       <small style="display:block;margin-bottom:6px">Δεν βρέθηκε επιβεβαιωμένο ανοιχτό API στάθμης. Δες τις παρακάτω πηγές και καταχώρισε την τιμή χειροκίνητα.</small>
+       <div style="font-size:12.5px;line-height:1.7">
+        <a href="https://www.meteolive.gr/p/rivers.html" target="_blank" rel="noopener">meteolive.gr: Έλεγχος στάθμης ποταμών Δήμου Τρικκαίων ↗</a><br>
+        <a href="https://hydro-stations.hcmr.gr/thessaly-water-level/" target="_blank" rel="noopener">ΕΛΚΕΘΕ: στάθμη υδάτων Θεσσαλίας ↗</a><br>
+        <a href="https://hydro-stations.hcmr.gr/wrf/?basin=PINIOS" target="_blank" rel="noopener">ΕΛΚΕΘΕ: μοντέλο WRF-Hydro Πηνειού ↗</a>
+       </div>
+       <h4 style="margin:12px 0 4px;font-size:12.5px">Σταθμοί ΕΛΚΕΘΕ που αφορούν τον Δήμο</h4>
+       <table class="tbl">
+        <tr><th>Σταθμός</th><th style="text-align:left">Ποταμός</th><th style="text-align:left">Μετρά</th></tr>
+        <tr><td>Lithaios</td><td style="text-align:left">Ληθαίος</td><td style="text-align:left">στάθμη</td></tr>
+        <tr><td>Flamouli</td><td style="text-align:left">Ληθαίος</td><td style="text-align:left">στάθμη</td></tr>
+        <tr><td>Raxa Meteo</td><td style="text-align:left">Ληθαίος (λεκάνη)</td><td style="text-align:left">βροχή</td></tr>
+        <tr><td>Dialexto</td><td style="text-align:left">Πηνειός</td><td style="text-align:left">στάθμη</td></tr>
+        <tr><td>Parapotamos</td><td style="text-align:left">Πηνειός</td><td style="text-align:left">στάθμη</td></tr>
+        <tr><td>Theopetra</td><td style="text-align:left">Ληθαίος, ανάντη</td><td style="text-align:left">στάθμη</td></tr>
+        <tr><td>Gorgogiri</td><td style="text-align:left">Κεφαλοπόταμος</td><td style="text-align:left">στάθμη</td></tr>
+       </table>
+       <small style="display:block;margin-top:4px">Οι σταθμοί φαίνονται και στον χάρτη. Οι δύο τελευταίοι είναι εκτός ορίων Δήμου. Ζωντανές τιμές: <a href="https://hydro-stations.hcmr.gr/thessaly-stations/" target="_blank" rel="noopener">σελίδα σταθμών Θεσσαλίας ↗</a></small>
+       <datalist id="stationList"><option value="Lithaios"><option value="Flamouli"><option value="Raxa Meteo"><option value="Dialexto"><option value="Parapotamos"><option value="Theopetra"><option value="Gorgogiri"></datalist>
+       <div class="row" style="margin-top:10px">
+        <input id="lvName" class="inp" list="stationList" placeholder="Σταθμός ή σημείο" style="flex:1 1 120px;min-width:0">
+        <input id="lvVal" class="inp" type="number" step="0.01" placeholder="Στάθμη (μ.)" style="width:104px">
+        <button type="button" id="lvAdd">Καταχώριση</button>
+       </div>
+       <div id="lvList" style="margin-top:8px;font-size:12px"></div>
+      </div>
+     </details>
+
+     <details class="acc">
+      <summary>Κατάσταση δρόμων και γεφυρών</summary>
+      <div class="body">
+       <small style="display:block;margin-bottom:6px">Ο δακτύλιος του σημείου στον χάρτη παίρνει το χρώμα της κατάστασης.</small>
+       <div id="roadList"></div>
+      </div>
+     </details>
+
+     <details class="acc">
+      <summary>Νοσοκομείο</summary>
+      <div class="body"><div id="hospBox" style="font-size:12.5px"></div></div>
+     </details>
+
+     <details class="acc">
+      <summary>Αντλιοστάσια</summary>
+      <div class="body">
+       <small style="display:block;margin-bottom:8px">Δεν υπάρχει επιβεβαιωμένος κατάλογος θέσεων. Πρόσθεσέ τα με κλικ στον χάρτη.</small>
+       <button type="button" id="pumpAdd">Προσθήκη αντλιοστασίου</button>
+       <div id="pumpList" style="margin-top:8px"></div>
+      </div>
+     </details>
+    </div>
+   </section>
+
+   <!-- ============ Επίπεδα χάρτη ============ -->
+   <section class="pane" id="pane-layers" role="tabpanel" hidden>
+    <h2>Επίπεδα χάρτη</h2>
+    <p class="lead">Τι εμφανίζεται πάνω στο υπόβαθρο.</p>
+
+    <div class="group">
+     <label><input type="checkbox" id="boundaryToggle" checked> <span>Όρια Δήμου Τρικκαίων</span></label>
+     <label><input type="checkbox" id="riverToggle" checked> <span>Ποτάμια & παραπόταμοι (Πηνειός, Ληθαίος, Παραληθαίος, Αγιαμονιώτης, Κουμέρκης, Πάμισος, τάφροι)</span></label>
+     <label><input type="checkbox" id="histFloodToggle"> <span>Ιστορικές ζώνες κατάκλυσης Daniel 2023 (ενδεικτικά)</span></label>
+     <label><input type="checkbox" id="escapeToggle" checked> <span>Άξονες διαφυγής (ενδεικτικοί)</span></label>
+     <label><input type="checkbox" id="infraToggle" checked> <span>Κρίσιμες υποδομές και σημεία ελέγχου</span></label>
+    </div>
+
+    <div class="group">
+     <b>Υδρολογικός χάρτης</b>
+     <label><input type="checkbox" id="hydroRiversToggle"> <span>Λεπτομερές υδρογραφικό δίκτυο (OSM)</span></label>
+     <label><input type="checkbox" id="hydroOfficialToggle"> <span>Επίσημο δίκτυο ΥΠΕΝ (Οδηγία 2000/60)</span></label>
+     <div id="hydroStatus" class="muted" style="margin-top:4px;font-size:12px">Εναλλακτική εμφάνιση των ίδιων ποταμών (ίδια γεωμετρία).</div>
+     <small class="sub">Εμφανίζει Πηνειό, Ληθαίο, Πάμισο και Αγιαμονιώτη με ουδέτερο χρώμα. Αν υπάρχει σύνδεση, προστίθενται και άλλα ρέματα από OSM.</small>
+    </div>
+
+    <div class="group">
+     <b>Επίσημες ζώνες ΥΠΕΝ (ΣΔΚΠ EL08)</b>
+     <label><input type="checkbox" id="floodToggle"> <span>Ζώνες πλημμύρας</span></label>
+     <label><input type="checkbox" id="apsfrToggle"> <span>Όρια ζώνης <b>EL08APSFR003</b></span></label>
+     <small class="sub">ΖΔΥΚΠ Πηνειός και παραπόταμοι (και Κάρλα). Φίλτρο <code>code_new=EL08APSFR003</code>.</small>
+
+     <div id="floodOptions" style="display:none;margin-left:6px;padding-left:12px;border-left:3px solid var(--water-soft)">
+      <b style="font-size:12.5px">Όρια κατάκλυσης</b>
+      <label><input type="checkbox" class="floodPeriod" value="50"> <span>Τ=50</span></label>
+      <small class="sub">Περίοδος επαναφοράς 50 έτη, πιθανότητα ~2% ανά έτος. Μικρότερο εύρος κατάκλυσης.</small>
+      <label><input type="checkbox" class="floodPeriod" value="100" checked> <span>Τ=100</span></label>
+      <small class="sub">Περίοδος επαναφοράς 100 έτη, πιθανότητα ~1% ανά έτος. Βασικό σενάριο σχεδιασμού.</small>
+      <label><input type="checkbox" class="floodPeriod" value="1000"> <span>Τ=1000</span></label>
+      <small class="sub">Περίοδος επαναφοράς 1000 έτη, πιθανότητα ~0,1% ανά έτος. Ακραίο σενάριο, μέγιστο εύρος.</small>
+      <div class="callout" style="margin:2px 0 12px">Για σύγκριση σεναρίων άφησε ενεργό <b>μόνο ένα</b> Τ κάθε φορά. Αν είναι ενεργά και τα τρία, φαίνονται σχεδόν ίδια.</div>
+
+      <b style="font-size:12.5px">Μέγιστο βάθος</b> <code>EL08_DMAX_*</code>
+      <label><input type="checkbox" class="depthPeriod" value="50"> <span>Βάθος Τ=50</span></label>
+      <label><input type="checkbox" class="depthPeriod" value="100"> <span>Βάθος Τ=100</span></label>
+      <label><input type="checkbox" class="depthPeriod" value="1000"> <span>Βάθος Τ=1000</span></label>
+
+      <div class="group" style="margin-top:10px;padding-top:10px">
+       <b style="font-size:12.5px">Μέγιστη ταχύτητα</b> <code>EL08_VMAX_*</code>
+       <label><input type="checkbox" class="velPeriod" value="50"> <span>Ταχύτητα Τ=50</span></label>
+       <label><input type="checkbox" class="velPeriod" value="100"> <span>Ταχύτητα Τ=100</span></label>
+       <label><input type="checkbox" class="velPeriod" value="1000"> <span>Ταχύτητα Τ=1000</span></label>
+      </div>
+
+      <div class="group" style="margin-top:10px;padding-top:10px">
+       <b style="font-size:12.5px">Χάρτες κινδύνου</b> <code>el08_risk_*</code>
+       <label><input type="checkbox" class="riskPeriod" value="50"> <span>Κίνδυνος Τ=50</span></label>
+       <label><input type="checkbox" class="riskPeriod" value="100"> <span>Κίνδυνος Τ=100</span></label>
+       <label><input type="checkbox" class="riskPeriod" value="1000"> <span>Κίνδυνος Τ=1000</span></label>
+       <small class="sub">Κατηγορίες κινδύνου, όχι μόνο όρια κατάκλυσης.</small>
+      </div>
+
+      <small style="display:block;margin-top:10px"><b>Όρια κατάκλυσης:</b> η περιοχή που, σύμφωνα με το επίσημο μοντέλο του ΥΠΕΝ, καλύπτεται από νερό σε πλημμύρα της αντίστοιχης περιόδου. Δεν είναι πρόβλεψη για σήμερα.</small>
+     </div>
+    </div>
+
+    <div class="group">
+     <b>Κατηγορίες σημείων</b>
+     <label><input type="checkbox" class="cat" value="hospital"> <span><span style="display:inline-flex;width:18px;height:18px;border-radius:4px;background:#ff0033;color:#fff;font-size:10px;font-weight:700;align-items:center;justify-content:center;margin-right:4px">✚</span>Νοσοκομείο</span></label>
+     <label><input type="checkbox" class="cat" value="emergency"> <span><span style="display:inline-flex;width:18px;height:18px;border-radius:4px;background:#ff6600;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:4px">★</span>Πυροσβεστική, αστυνομία, δημαρχείο, Π.Π., ΕΚΑΒ</span></label>
+     <label><input type="checkbox" class="cat" value="schools"> <span><span style="display:inline-flex;width:18px;height:18px;border-radius:4px;background:#aa00ff;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:4px">▦</span>Σχολεία (δημοτικά, γυμνάσια, λύκεια, νηπιαγωγεία)</span></label>
+     <label><input type="checkbox" class="cat" value="daycare"> <span><span style="display:inline-flex;width:18px;height:18px;border-radius:4px;background:#e11d8c;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:4px">👶</span>Βρεφικοί / παιδικοί σταθμοί &amp; ΚΔΑΠ</span></label>
+     <label><input type="checkbox" class="cat" value="sports"> <span><span style="display:inline-flex;width:18px;height:18px;border-radius:4px;background:#0d9488;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:4px">⚽</span>Στάδια / κλειστά γυμναστήρια</span></label>
+     <label><input type="checkbox" class="cat" value="shelter"> <span><span style="display:inline-flex;width:18px;height:18px;border-radius:4px;background:#ca8a04;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:4px">⛺</span>Καταφύγια / σημεία εκκένωσης</span></label>
+     <label><input type="checkbox" class="cat" value="bridges"> <span><span style="display:inline-flex;width:18px;height:18px;border-radius:4px;background:#0088ff;color:#fff;font-size:10px;font-weight:700;align-items:center;justify-content:center;margin-right:4px">☰</span>Γέφυρες και διαβάσεις ποταμού</span></label>
+     <label><input type="checkbox" class="cat" value="roads"> <span><span style="display:inline-flex;width:18px;height:18px;border-radius:4px;background:#ff9900;color:#fff;font-size:10px;font-weight:700;align-items:center;justify-content:center;margin-right:4px">↗</span>Οδικό δίκτυο</span></label>
+     <label><input type="checkbox" class="cat" value="utilities"> <span><span style="display:inline-flex;width:18px;height:18px;border-radius:4px;background:#9900ff;color:#fff;font-size:10px;font-weight:700;align-items:center;justify-content:center;margin-right:4px">⚡</span>Ύδρευση και ενέργεια</span></label>
+     <label><input type="checkbox" class="cat" value="villages"> <span><span style="display:inline-flex;width:18px;height:18px;border-radius:4px;background:#00aa44;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:4px">⌂</span>Χωριά και οικισμοί</span></label>
+     <label><input type="checkbox" class="cat" value="stations"> <span><span style="display:inline-flex;width:18px;height:18px;border-radius:4px;background:#00aacc;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:4px">◉</span>Σταθμοί μέτρησης ΕΛΚΕΘΕ</span></label>
+     <label><input type="checkbox" class="cat" value="history"> <span><span style="display:inline-flex;width:18px;height:18px;border-radius:4px;background:#cc0000;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:4px">!</span>Ιστορικές πλημμύρες (Daniel κ.ά.)</span></label>
+    </div>
+
+    <div class="group">
+     <b>Επίσημοι χάρτες και πύλες</b>
+     <div style="font-size:12.5px;line-height:1.75;margin-top:6px">
+      <a href="https://floods.ypeka.gr/sdkp-lap/maps-2round/sdkp-el08-2round/2round-chartes-epikin-esot-ydata-el08/" target="_blank" rel="noopener">Χάρτες επικινδυνότητας EL08 (2ος κύκλος) ↗</a><br>
+      <a href="https://floods.ypeka.gr/sdkp-lap/maps-2round/sdkp-el08-2round/2round-chartes-kindin-el08/" target="_blank" rel="noopener">Χάρτες κινδύνου EL08 (2ος κύκλος) ↗</a><br>
+      <a href="https://gis.floods.ypeka.gr/" target="_blank" rel="noopener">Γεωπύλη ΣΔΚΠ ΥΠΕΝ ↗</a>
+     </div>
+     <small style="display:block;margin:10px 0 4px">Στατικοί χάρτες 1ου κύκλου για την περιοχή των Τρικάλων (<a href="https://floods.ypeka.gr/sdkp-lap/maps-1round/sdkp-el08-1round/chartes-epikin-el08/" target="_blank" rel="noopener">όλες οι πινακίδες ↗</a>):</small>
+     <div style="font-size:12.5px;line-height:1.75">
+      <a href="https://floods.ypeka.gr/wp-content/uploads/2023/12/GR08_P05_S2_MD_T100_02800-43650.jpg" target="_blank" rel="noopener">Βάθος Τ=100, πινακίδα 02800-43650 ↗</a><br>
+      <a href="https://floods.ypeka.gr/wp-content/uploads/2023/12/GR08_P05_S3_MD_T1000_02800-43650.jpg" target="_blank" rel="noopener">Βάθος Τ=1000, πινακίδα 02800-43650 ↗</a><br>
+      <a href="https://floods.ypeka.gr/wp-content/uploads/2023/12/GR08_P05_S1_MD_T50_03200-44100.jpg" target="_blank" rel="noopener">Βάθος Τ=50, πινακίδα 03200-44100 ↗</a><br>
+      <a href="https://floods.ypeka.gr/wp-content/uploads/2023/12/GR08_P05_S2_MD_T100_03200-44100.jpg" target="_blank" rel="noopener">Βάθος Τ=100, πινακίδα 03200-44100 ↗</a><br>
+      <a href="https://floods.ypeka.gr/sdkp-lap/maps-1round/sdkp-el08-1round/chartes-kindin-el08/" target="_blank" rel="noopener">Χάρτες κινδύνου EL08 (1ος κύκλος) ↗</a>
+     </div>
+    </div>
+   </section>
+
+   <!-- ============ Στοιχεία ============ -->
+   <section class="pane" id="pane-info" role="tabpanel" hidden>
+    <h2>Στοιχεία και ιστορικό</h2>
+    <p class="lead">Πληθυσμός, κακοκαιρία Daniel και δεδομένα που λείπουν.</p>
+
+    <h3 style="margin-top:0">Κακοκαιρία Daniel, Σεπτέμβριος 2023</h3>
+    <div class="daniel" id="danielSection">
+     <table class="tbl">
+      <tr><td>Έναρξη φαινομένου</td><td class="n">3–4 Σεπ. 2023</td></tr>
+      <tr><td>Μέση βροχόπτωση λεκάνης Πηνειού (4 ημέρες)</td><td class="n">~360 mm</td></tr>
+      <tr><td>Μέγιστο: Ζαγορά Μαγνησίας, 5 Σεπ.</td><td class="n">645 mm σε λίγες ώρες</td></tr>
+      <tr><td>Στάθμη Πηνειού, 9 Σεπ.</td><td class="n">σχεδόν 10 μ.</td></tr>
+      <tr><td>Θύματα, Θεσσαλία συνολικά</td><td class="n">17</td></tr>
+      <tr><td>Πληγείσα γεωργική γη Θεσσαλίας</td><td class="n">&gt;700 km²</td></tr>
+      <tr><td>Κατακλυσμένη έκταση 12 Σεπ. (Copernicus)</td><td class="n">~60.000 ha</td></tr>
+     </table>
+     <h4>Πυροσβεστική στα Τρίκαλα, απολογισμός 8 Σεπ.</h4>
+     <table class="tbl">
+      <tr><td>Κλήσεις</td><td class="n">605</td></tr>
+      <tr><td>Αντλήσεις υδάτων</td><td class="n">90</td></tr>
+      <tr><td>Άτομα σε ασφαλές σημείο</td><td class="n">370</td></tr>
+     </table>
+     <small style="display:block;margin-top:4px">Επιπλέον 110 εναέριες διασώσεις σε επίπεδο περιοχής στις 7 Σεπ. (10 ελικόπτερα).</small>
+     <h4>Μηνύματα 112 στα Τρίκαλα</h4>
+     <small>Λίλη, Βαλομάνδρι, Παραπόταμος, Δροσερό («απομακρυνθείτε από υπόγεια και ισόγεια»). Η θέση τους δεν σημειώνεται στον χάρτη μέχρι επαλήθευση συντεταγμένων.</small>
+     <h4>Μεγάλα Καλύβια</h4>
+     <small>Κηρύχθηκε καθολικά πλημμυροπαθές· το σχολείο πλημμύρισε (επιστολή κοινότητας 24/12/2023).</small>
+     <h4>Copernicus EMS, EMSR692</h4>
+     <small>Ενεργοποίηση 5/9/2023. Για την ΠΕ Λάρισας (AOI03) το ίχνος πλημμύρας ήταν 4.602 ha στις 14/9 και 10.583 ha στις 17/9. Δεν υπάρχει ξεχωριστό στοιχείο μόνο για τον Δήμο Τρικκαίων.</small>
+     <div style="margin-top:8px;font-size:12px;line-height:1.7">
+      <a href="https://mapping.emergency.copernicus.eu/activations/EMSR692" target="_blank" rel="noopener">Copernicus EMSR692: χάρτες και προϊόντα ↗</a><br>
+      <a href="https://www.itia.ntua.gr/el/docinfo/2451/" target="_blank" rel="noopener">ΕΜΠ/ITIA: μετα-ανάλυση πλημμύρας Daniel ↗</a>
+     </div>
+     <small style="display:block;margin-top:8px">Πηγές: ΕΜΠ/ITIA, Copernicus EMS, Πολιτική Προστασία, cnn.gr, naftemporiki.gr, euronews, Βουλή των Ελλήνων. Οι αριθμοί προέρχονται από δημόσιες αναφορές, όχι από επίσημη τελική καταγραφή για τον Δήμο.</small>
+    </div>
+
+    <h3>Πληθυσμός και κίνδυνος</h3>
+    <div class="info">
+     <h4 style="margin-top:0">Πληθυσμός Δήμου Τρικκαίων (ΕΛΣΤΑΤ 2021)</h4>
+     <table class="tbl">
+      <tr><td>Σύνολο Δήμου</td><td class="n">78.605</td></tr>
+      <tr><td>Δ.Ε. Τρικκαίων (πόλη)</td><td class="n">62.064</td></tr>
+      <tr><td>Λοιπές Δ.Ε. και χωριά</td><td class="n">~16.541</td></tr>
+     </table>
+
+     <h4>Θιγόμενοι στη ΖΔΥΚΠ EL08APSFR003</h4>
+     <table class="tbl">
+      <tr><th>Μέγεθος</th><th>Τ=50</th><th>Τ=100</th><th>Τ=1000</th></tr>
+      <tr><td>Θιγόμενοι</td><td class="n">~79.900</td><td class="n">~96.800</td><td class="n">~147.500</td></tr>
+     </table>
+     <div class="callout" style="margin-top:8px">Δεν υπάρχει επίσημος αριθμός θιγόμενων μόνο για τον Δήμο Τρικκαίων ανά Τ. Το APSFR003 καλύπτει Πηνειό και παραποτάμους μαζί με τη Λάρισα και άλλες περιοχές του κάμπου. Τα 78.605 είναι μόνιμος πληθυσμός του Δήμου, όχι εκτίμηση πλημμύρας. <a href="https://floods.ypeka.gr/sdkp-lap/maps-2round/sdkp-el08-2round/" target="_blank" rel="noopener">Πηγή ΣΔΚΠ EL08 ↗</a></div>
+
+     <h4>Οικισμοί ενδιαφέροντος, κάτοικοι 2021</h4>
+     <table class="tbl">
+      <tr><th>Οικισμός</th><th>Κάτοικοι</th><th style="text-align:left;padding-left:12px">Σημείωση</th></tr>
+      <tr><td>Τρίκαλα (πόλη)</td><td class="n">61.607</td><td style="padding-left:12px;color:var(--muted)">αστικό κέντρο</td></tr>
+      <tr><td>Μεγάλα Καλύβια</td><td class="n">1.599</td><td style="padding-left:12px;color:var(--muted)">πεδινός, ιστορικά πληγείς</td></tr>
+      <tr><td>Μεγάρχη</td><td class="n">667</td><td style="padding-left:12px;color:var(--muted)">δυτικές όχθες Πηνειού</td></tr>
+      <tr><td>Φωτάδα</td><td class="n">~378</td><td style="padding-left:12px;color:var(--muted)">Δ.Ε. Καλλιδένδρου</td></tr>
+      <tr><td>Αγία Κυριακή</td><td class="n">283</td><td style="padding-left:12px;color:var(--muted)">πεδινός, ιστορικά πληγείς</td></tr>
+      <tr><td>Γλίνος (Δ.Κ.)</td><td class="n">466</td><td style="padding-left:12px;color:var(--muted)">Δ.Ε. Μεγ. Καλυβίων</td></tr>
+     </table>
+     <small style="display:block;margin-top:8px">Μόνιμος πληθυσμός ΕΛΣΤΑΤ, απογραφή 2021 (citypopulation.de και τοπικές δημοσιεύσεις). Βοηθά στην προτεραιοποίηση· δεν σημαίνει ότι όλοι πλημμυρίζουν.</small>
+    </div>
+
+    <h3>Δεδομένα που χρειάζονται ακόμη</h3>
+    <ul style="padding-left:18px;margin:0;font-size:12.5px;line-height:1.6">
+     <li>Ακριβείς συντεταγμένες γεφυρών και υποδομών (πολλά σημεία ακόμα ενδεικτικά)</li>
+     <li>Ανοιχτό API παρατηρούμενης στάθμης από meteolive/ΕΛΚΕΘΕ (τώρα μόνο σύνδεσμοι + χειροκίνητη καταχώριση)· παροχή από μοντέλο GloFAS υπάρχει</li>
+     <li>Επιβεβαιωμένες οδοί διαφυγής από το επίσημο Σχέδιο Π.Π. του Δήμου (οι τρέχουσες είναι ενδεικτικές)</li>
+     <li>Πληθυσμός / χωρητικότητα ανά καταφύγιο και επαλήθευση πρόσβασης σε πλημμύρα</li>
+    </ul>
+    <p class="muted" style="margin-top:10px;font-size:12px"><b>v0.39:</b> αναζήτηση σημείων, φίλτρο «εντός ζώνης», εξαγωγή GeoJSON, άξονες διαφυγής στον χάρτη, checklist με timestamp, ημερολόγιο ενεργειών.</p>
+   </section>
+  </aside>
+
+  <section class="mapcard">
+   <div class="maphead">
+    <strong>Χάρτης Δήμου Τρικκαίων</strong>
+    <div class="maptools">
+     <input id="pointSearch" class="inp" type="search" placeholder="Αναζήτηση σημείου…" style="width:150px;padding:6px 9px" title="Αναζήτηση με όνομα">
+     <button id="zoomTrikala" type="button">Κέντρο Δήμου</button>
+     <button id="showAll" type="button">Όλα τα σημεία</button>
+     <button id="resetBtn" type="button">Επαναφορά</button>
+     <button id="exportBtn" type="button">CSV</button>
+     <button id="exportGeoBtn" type="button">GeoJSON</button>
+     <button id="filterInsideBtn" type="button" title="Εμφάνισε μόνο σημεία εντός ζώνης μετά από σενάριο">Εντός ζώνης</button>
+    </div>
+   </div>
+   <div id="map" role="application" aria-label="Χάρτης πλημμυρικού κινδύνου Τρικάλων">
+    <div id="mapLoading" style="padding:18px;font-size:13px;color:#486581">Φόρτωση χάρτη… Αν δεν εμφανιστεί, θα εμφανιστεί εναλλακτικός σχηματικός χάρτης.</div>
+   </div>
+   <div class="legendbar">
+    <span><span style="display:inline-flex;width:20px;height:20px;border-radius:5px;background:#b42318;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:5px;border:1px solid #fff">✚</span>Νοσοκομείο</span>
+    <span><span style="display:inline-flex;width:20px;height:20px;border-radius:5px;background:#c2410c;color:#fff;font-size:12px;font-weight:700;align-items:center;justify-content:center;margin-right:5px;border:1px solid #fff">★</span>Έκτακτη ανάγκη</span>
+    <span><span style="display:inline-flex;width:20px;height:20px;border-radius:5px;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:5px;border:1px solid #fff">▦</span>Σχολεία</span>
+    <span><span style="display:inline-flex;width:20px;height:20px;border-radius:5px;background:#e11d8c;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:5px;border:1px solid #fff">👶</span>Σταθμοί παιδιών</span>
+    <span><span style="display:inline-flex;width:20px;height:20px;border-radius:5px;background:#0d9488;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:5px;border:1px solid #fff">⚽</span>Αθλητισμός</span>
+    <span><span style="display:inline-flex;width:20px;height:20px;border-radius:5px;background:#ca8a04;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:5px;border:1px solid #fff">⛺</span>Καταφύγια</span>
+    <span><span style="display:inline-flex;width:20px;height:20px;border-radius:5px;background:#1687d9;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:5px;border:1px solid #fff">☰</span>Γέφυρες</span>
+    <span><span style="display:inline-flex;width:20px;height:20px;border-radius:5px;background:#e87524;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:5px;border:1px solid #fff">↗</span>Δρόμοι</span>
+    <span><span style="display:inline-flex;width:20px;height:20px;border-radius:5px;background:#6b46c1;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:5px;border:1px solid #fff">⚡</span>Ύδρευση</span>
+    <span><span style="display:inline-flex;width:20px;height:20px;border-radius:5px;background:#2f855a;color:#fff;font-size:12px;font-weight:700;align-items:center;justify-content:center;margin-right:5px;border:1px solid #fff">⌂</span>Οικισμοί</span>
+    <span><span style="display:inline-flex;width:20px;height:20px;border-radius:5px;background:#00aacc;color:#fff;font-size:12px;font-weight:700;align-items:center;justify-content:center;margin-right:5px;border:1px solid #fff">◉</span>Σταθμοί ΕΛΚΕΘΕ</span>
+    <span><span style="display:inline-flex;width:20px;height:20px;border-radius:5px;background:#cc0000;color:#fff;font-size:12px;font-weight:700;align-items:center;justify-content:center;margin-right:5px;border:1px solid #fff">!</span>Ιστορικά</span>
+    <span><span style="display:inline-block;width:18px;height:3px;border-top:3px dashed #ff2d55;margin-right:6px;vertical-align:middle"></span>Όρια Δήμου</span>
+    <span><span class="river-key" style="background:#1a365d"></span>Πηνειός</span>
+    <span><span class="river-key" style="background:#2b6cb0"></span>Ληθαίος</span>
+    <span><span class="river-key" style="background:#3182ce"></span>Πάμισος</span>
+    <span><span class="river-key" style="background:#4299e1"></span>Αγιαμονιώτης</span>
+    <span><span style="display:inline-block;width:18px;height:0;border-top:4px dashed #16a34a;margin-right:6px;vertical-align:middle"></span>Άξονες διαφυγής</span>
+   </div>
+  </section>
+
+ </div>
+</main>
+<footer>Υπόβαθρο © Esri · Υδρογραφία © OpenStreetMap contributors (ODbL, απλοποιημένη) · Χάρτης Leaflet · Ζώνες πλημμύρας © ΥΠΕΝ / ΣΔΚΠ EL08 (WMS). Για επιχειρησιακή χρήση απαιτείται επαλήθευση.</footer>
+<script>
+(function(){
+ const mapElement = document.getElementById('map');
+ const center=[39.555,21.767];
+ const municipalityBounds=[[39.44,21.62],[39.63,21.90]]; // όρια ώστε να φαίνονται Πηνειός, Πάμισος, Ληθαίος
+
+ function showFallback(msg){
+   mapElement.innerHTML = `
+    <div style="height:100%;min-height:420px;background:#eaf2f5;position:relative;overflow:hidden;padding:18px;font-family:Arial,sans-serif">
+      <div style="font-weight:bold;font-size:15px;margin-bottom:8px;color:#102a43">Σχηματικός χάρτης αναφοράς — Τρίκαλα</div>
+      <div style="font-size:12px;color:#486581;margin-bottom:10px">${msg||'Δεν φορτώθηκε η βιβλιοθήκη του διαδραστικού χάρτη. Το παρακάτω είναι μόνο σχηματική απεικόνιση.'}</div>
+      <svg viewBox="0 0 760 420" role="img" aria-label="Σχηματική απεικόνιση Ληθαίου και σημείων ελέγχου" style="width:100%;height:calc(100% - 70px);min-height:300px;background:#f8fbfc;border:1px solid #d9e2ec;border-radius:8px">
+       <defs><pattern id="grid" width="35" height="35" patternUnits="userSpaceOnUse"><path d="M 35 0 L 0 0 0 35" fill="none" stroke="#dce7ed" stroke-width="1"/></pattern></defs>
+       <rect width="760" height="420" fill="url(#grid)"/>
+       <path d="M70 25 C170 90 120 140 270 180 S430 245 390 300 S510 355 690 395" fill="none" stroke="#7bc4e8" stroke-width="26" opacity=".7"/>
+       <path d="M70 25 C170 90 120 140 270 180 S430 245 390 300 S510 355 690 395" fill="none" stroke="#1687d9" stroke-width="3" stroke-dasharray="8 7"/>
+       <g font-family="Arial,sans-serif" font-size="13" fill="#243b53">
+        <text x="105" y="55" font-weight="bold">Ληθαίος (σχηματικά)</text>
+        <text x="330" y="65">Κέντρο Τρικάλων</text>
+        <text x="485" y="115">Περιοχές προς έλεγχο</text>
+       </g>
+       <g><circle cx="440" cy="135" r="9" fill="#b42318" stroke="white" stroke-width="3"/><text x="455" y="139" font-size="12" fill="#243b53">Υγεία — θέση προς επαλήθευση</text></g>
+       <g><circle cx="300" cy="200" r="9" fill="#1687d9" stroke="white" stroke-width="3"/><text x="315" y="204" font-size="12" fill="#243b53">Γέφυρες / ποτάμι</text></g>
+       <g><circle cx="490" cy="260" r="9" fill="#e87524" stroke="white" stroke-width="3"/><text x="505" y="264" font-size="12" fill="#243b53">Οδικό δίκτυο</text></g>
+       <g><circle cx="560" cy="325" r="9" fill="#6b46c1" stroke="white" stroke-width="3"/><text x="575" y="329" font-size="12" fill="#243b53">Ύδρευση / ενέργεια</text></g>
+      </svg>
+      <div style="margin-top:8px;font-size:12px"><a href="https://www.openstreetmap.org/#map=14/39.555/21.767" target="_blank" rel="noopener">Άνοιγμα πραγματικού χάρτη Τρικάλων στο OpenStreetMap ↗</a></div>
+      <div style="margin-top:6px;font-size:11px;color:#627d98">Συμβουλή: άνοιξε το αρχείο μέσω τοπικού web server (π.χ. Live Server στο VS Code) ή βάλε το σε GitHub Pages / Netlify. Το άνοιγμα ως file:// συχνά μπλοκάρει τα πλακίδια χάρτη.</div>
+    </div>`;
+ }
+
+ function initMap(){
+  if (!window.L) {
+    showFallback('Δεν φορτώθηκε η βιβλιοθήκη Leaflet (CDN μπλοκαρισμένο ή χωρίς internet).');
+    return;
+  }
+  try {
+ document.getElementById('mapLoading') && document.getElementById('mapLoading').remove();
+ const map=L.map('map').setView(center, 13);
+ map.createPane('rivers');
+ map.getPane('rivers').style.zIndex = 450;
+ map.getPane('rivers').style.pointerEvents = 'none';
+ // Υπόβαθρα χωρίς API key (OSM/CARTO μπλοκάρουν ή ζητούν key σε τοπικό file://).
+ const baseTiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+   maxZoom: 19,
+   attribution: 'Tiles &copy; Esri'
+ });
+ const baseFallback = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+   maxZoom: 19,
+   attribution: '&copy; OpenStreetMap / HOT',
+   subdomains: 'abc'
+ });
+ baseTiles.addTo(map);
+ let tileErrors = 0;
+ baseTiles.on('tileerror', function(){
+   tileErrors++;
+   if(tileErrors >= 4 && !document.getElementById('tileWarning')){
+     if(map.hasLayer(baseTiles)) map.removeLayer(baseTiles);
+     if(!map.hasLayer(baseFallback)) baseFallback.addTo(map);
+     const warning = document.createElement('div');
+     warning.id='tileWarning';
+     warning.style.cssText='position:absolute;z-index:1000;top:10px;left:50px;right:10px;background:#fff7e8;border:1px solid #f2cc8f;border-radius:6px;padding:8px;font-size:12px;color:#243b53';
+     warning.textContent='Εναλλακτική πηγή πλακιδίων ενεργή.';
+     mapElement.appendChild(warning);
+   }
+ });
+ const river=L.layerGroup().addTo(map), infra=L.layerGroup().addTo(map);
+ const muniBoundary=[[39.54002,21.53929],[39.53402,21.54063],[39.53076,21.54238],[39.52709,21.54431],[39.52259,21.54717],[39.52006,21.54977],[39.51913,21.55568],[39.51955,21.55932],[39.52046,21.56223],[39.52082,21.56963],[39.52298,21.57947],[39.52402,21.58391],[39.52465,21.58942],[39.52552,21.5963],[39.52647,21.60049],[39.52746,21.60551],[39.52846,21.61093],[39.5297,21.61819],[39.53085,21.62309],[39.53303,21.63047],[39.53434,21.63324],[39.53683,21.63776],[39.53934,21.64172],[39.54016,21.64698],[39.54002,21.64953],[39.53862,21.65216],[39.53772,21.65528],[39.53748,21.65668],[39.53728,21.65795],[39.53794,21.66288],[39.53627,21.66325],[39.53534,21.66276],[39.53409,21.66402],[39.53305,21.66575],[39.53291,21.66699],[39.53295,21.66819],[39.53168,21.67023],[39.53065,21.6712],[39.53141,21.67997],[39.53158,21.68251],[39.53038,21.68443],[39.52902,21.68803],[39.52981,21.69123],[39.53277,21.69145],[39.5352,21.69103],[39.53759,21.69181],[39.53884,21.69022],[39.54169,21.69012],[39.54574,21.69178],[39.54856,21.69355],[39.55168,21.69507],[39.55565,21.69724],[39.5535,21.70036],[39.55391,21.70252],[39.55189,21.70396],[39.54985,21.70469],[39.54905,21.70723],[39.54645,21.70961],[39.54557,21.7123],[39.54283,21.71265],[39.54183,21.7151],[39.53951,21.71682],[39.53781,21.71743],[39.53318,21.71975],[39.53022,21.72142],[39.52973,21.72364],[39.52757,21.72656],[39.52667,21.72856],[39.52766,21.72976],[39.52838,21.73108],[39.52744,21.73255],[39.52538,21.73383],[39.5239,21.73541],[39.52357,21.73664],[39.52343,21.73894],[39.52353,21.74167],[39.52252,21.74316],[39.52106,21.74454],[39.51806,21.74447],[39.51788,21.74789],[39.51631,21.74825],[39.51474,21.74922],[39.51259,21.74943],[39.51121,21.75054],[39.50993,21.7554],[39.50565,21.75509],[39.50289,21.75085],[39.5011,21.74742],[39.50016,21.74451],[39.50148,21.74127],[39.50133,21.73951],[39.49897,21.73789],[39.49647,21.73727],[39.49618,21.73902],[39.49431,21.74032],[39.49152,21.74114],[39.49058,21.74457],[39.49029,21.7468],[39.48829,21.74846],[39.48749,21.74709],[39.48548,21.74871],[39.48274,21.74727],[39.48115,21.75047],[39.47841,21.75125],[39.47836,21.75447],[39.47767,21.75602],[39.47531,21.75685],[39.47055,21.75604],[39.46807,21.75782],[39.46671,21.75817],[39.45944,21.74975],[39.45191,21.74955],[39.45005,21.75164],[39.45153,21.75691],[39.45768,21.7647],[39.46126,21.77368],[39.46203,21.7781],[39.4631,21.78828],[39.46214,21.79674],[39.46386,21.80121],[39.46927,21.80591],[39.47614,21.80996],[39.4834,21.81537],[39.49136,21.82072],[39.49555,21.82689],[39.50004,21.83335],[39.50255,21.83408],[39.50534,21.83764],[39.50814,21.84122],[39.51061,21.84201],[39.51321,21.84163],[39.51368,21.84385],[39.51262,21.84654],[39.51171,21.8494],[39.51174,21.85531],[39.51138,21.85795],[39.50897,21.86498],[39.50898,21.86774],[39.50991,21.87166],[39.50833,21.8747],[39.50753,21.87979],[39.5095,21.8815],[39.51197,21.88193],[39.51443,21.88379],[39.5165,21.88144],[39.51906,21.88376],[39.52024,21.89143],[39.52031,21.89549],[39.52352,21.89496],[39.52398,21.89242],[39.52301,21.8832],[39.52329,21.87785],[39.52394,21.87743],[39.5244,21.87722],[39.52465,21.8769],[39.5253,21.87671],[39.52532,21.87597],[39.52665,21.87541],[39.52778,21.87544],[39.52861,21.87474],[39.52922,21.87492],[39.53037,21.87528],[39.53263,21.87575],[39.53421,21.8759],[39.53667,21.87761],[39.53757,21.87895],[39.53841,21.87926],[39.53899,21.88104],[39.5391,21.88215],[39.54054,21.88103],[39.54262,21.88084],[39.54578,21.88148],[39.54717,21.88011],[39.55039,21.87972],[39.5524,21.88061],[39.55301,21.87756],[39.55451,21.87351],[39.55763,21.86783],[39.55939,21.86379],[39.56205,21.86154],[39.56559,21.86217],[39.56806,21.8628],[39.57125,21.86342],[39.57461,21.86683],[39.57586,21.8691],[39.57774,21.8712],[39.58096,21.87407],[39.58467,21.87965],[39.58529,21.88171],[39.58628,21.88418],[39.58854,21.88639],[39.59204,21.88747],[39.59949,21.88588],[39.60237,21.88561],[39.60406,21.88627],[39.60661,21.88884],[39.60637,21.8923],[39.60617,21.89598],[39.60619,21.90059],[39.60518,21.90554],[39.60222,21.91402],[39.59909,21.91964],[39.59894,21.92212],[39.60289,21.92437],[39.60769,21.92632],[39.61014,21.9263],[39.6143,21.92494],[39.61857,21.92576],[39.62538,21.9252],[39.62672,21.92315],[39.62827,21.91845],[39.63074,21.91664],[39.63593,21.91498],[39.63798,21.91537],[39.64049,21.91658],[39.64213,21.91483],[39.64461,21.91511],[39.64763,21.91836],[39.65059,21.92364],[39.6524,21.92652],[39.65554,21.92732],[39.65761,21.92853],[39.65808,21.93074],[39.65736,21.93284],[39.65338,21.936],[39.65256,21.93852],[39.65245,21.94266],[39.65368,21.94799],[39.65404,21.95076],[39.6512,21.95119],[39.64924,21.95373],[39.64529,21.95398],[39.643,21.95527],[39.64103,21.95719],[39.63975,21.95873],[39.6401,21.96474],[39.63908,21.9682],[39.63934,21.96998],[39.64228,21.97407],[39.64464,21.97754],[39.6441,21.98017],[39.64308,21.98363],[39.64167,21.98572],[39.64275,21.98572],[39.6456,21.98376],[39.65035,21.9816],[39.65325,21.9798],[39.65626,21.97584],[39.65818,21.97307],[39.66025,21.9705],[39.66409,21.96643],[39.66605,21.96752],[39.66861,21.96912],[39.67025,21.96743],[39.67298,21.96519],[39.67472,21.96469],[39.67852,21.9672],[39.68034,21.96869],[39.68318,21.97153],[39.68558,21.97355],[39.68831,21.97467],[39.68956,21.9767],[39.69168,21.97834],[39.69341,21.97866],[39.69621,21.978],[39.69775,21.97913],[39.69795,21.97885],[39.69808,21.97705],[39.7003,21.9757],[39.70347,21.97384],[39.70498,21.97017],[39.70847,21.96318],[39.71276,21.95898],[39.7217,21.95436],[39.72919,21.95307],[39.73179,21.95158],[39.73376,21.94888],[39.73783,21.94515],[39.74101,21.94594],[39.74268,21.94517],[39.74452,21.94297],[39.74651,21.94034],[39.74792,21.94028],[39.75119,21.94314],[39.75352,21.9453],[39.75706,21.94549],[39.7589,21.94409],[39.75998,21.94117],[39.76162,21.93879],[39.76608,21.93486],[39.76752,21.93205],[39.76581,21.93134],[39.76264,21.92832],[39.76108,21.92364],[39.75913,21.92096],[39.75638,21.91878],[39.75331,21.91248],[39.75088,21.9068],[39.75092,21.90448],[39.75139,21.90116],[39.75149,21.89942],[39.74978,21.89707],[39.74865,21.89604],[39.74297,21.88413],[39.74114,21.88134],[39.73869,21.88167],[39.73505,21.88362],[39.73227,21.88343],[39.73053,21.88005],[39.73033,21.87731],[39.72896,21.87521],[39.72446,21.87233],[39.72063,21.87104],[39.71634,21.87155],[39.71275,21.87161],[39.70666,21.87095],[39.70403,21.86948],[39.69967,21.86782],[39.69921,21.86417],[39.7002,21.86205],[39.70003,21.85887],[39.69895,21.85543],[39.69952,21.85231],[39.69889,21.84872],[39.70414,21.84601],[39.7077,21.84378],[39.71227,21.83931],[39.71689,21.83412],[39.72067,21.82915],[39.72364,21.82653],[39.7238,21.82411],[39.72108,21.81918],[39.71902,21.8166],[39.71647,21.81098],[39.71355,21.80752],[39.71126,21.8028],[39.70965,21.79865],[39.70916,21.79548],[39.70706,21.79008],[39.7045,21.78288],[39.70424,21.77966],[39.70615,21.77365],[39.70622,21.77042],[39.70522,21.76704],[39.70442,21.76549],[39.70355,21.76295],[39.704,21.7605],[39.70443,21.75859],[39.7037,21.75662],[39.70358,21.75403],[39.70232,21.75179],[39.70178,21.74938],[39.70154,21.74732],[39.70538,21.74677],[39.7092,21.74813],[39.71115,21.74742],[39.7143,21.74297],[39.71705,21.74078],[39.72018,21.7397],[39.72081,21.73625],[39.72087,21.73217],[39.72297,21.73044],[39.72631,21.72873],[39.73035,21.72682],[39.73255,21.7245],[39.734,21.72183],[39.73605,21.71924],[39.73842,21.71728],[39.74086,21.72118],[39.74285,21.7256],[39.74445,21.72538],[39.74826,21.72278],[39.749,21.72131],[39.7476,21.71806],[39.74619,21.7154],[39.74274,21.71064],[39.74233,21.70759],[39.74364,21.70328],[39.74517,21.70068],[39.74549,21.69846],[39.74316,21.69491],[39.74126,21.69096],[39.73851,21.69309],[39.72741,21.69707],[39.72298,21.70014],[39.71844,21.70546],[39.71431,21.70701],[39.70608,21.70827],[39.70371,21.7037],[39.70111,21.69988],[39.69805,21.69866],[39.69637,21.69953],[39.69639,21.7035],[39.69258,21.70482],[39.68899,21.70501],[39.68545,21.70624],[39.68404,21.711],[39.68264,21.71165],[39.67621,21.70748],[39.67306,21.70661],[39.66952,21.70699],[39.66617,21.70859],[39.663,21.70794],[39.66037,21.70644],[39.65862,21.70456],[39.65686,21.7042],[39.65513,21.70478],[39.65186,21.70841],[39.65038,21.71212],[39.64936,21.71753],[39.64848,21.71952],[39.64652,21.72064],[39.64366,21.72347],[39.64179,21.72619],[39.63735,21.72807],[39.63063,21.72917],[39.62787,21.72869],[39.62824,21.72671],[39.63084,21.7231],[39.62849,21.72254],[39.62707,21.72131],[39.62703,21.71576],[39.62503,21.71487],[39.62187,21.717],[39.6196,21.71997],[39.61415,21.72276],[39.61436,21.71626],[39.61291,21.70953],[39.61116,21.69482],[39.61111,21.68544],[39.61236,21.68495],[39.61251,21.68284],[39.61096,21.68028],[39.61066,21.6786],[39.61685,21.67613],[39.62038,21.6738],[39.62179,21.67523],[39.62306,21.67739],[39.62654,21.6733],[39.63083,21.6664],[39.63033,21.6641],[39.63062,21.66154],[39.62885,21.66179],[39.62967,21.65977],[39.6318,21.65727],[39.63457,21.65394],[39.63584,21.65259],[39.63715,21.6505],[39.63743,21.64878],[39.63728,21.64229],[39.63442,21.6359],[39.63283,21.63128],[39.633,21.62524],[39.63448,21.61758],[39.63644,21.61265],[39.6352,21.60539],[39.63581,21.60375],[39.64028,21.59835],[39.64357,21.59653],[39.64712,21.59585],[39.64785,21.59435],[39.64728,21.59025],[39.64535,21.58694],[39.64235,21.58438],[39.64182,21.57798],[39.64033,21.5694],[39.63627,21.56173],[39.63398,21.55196],[39.63254,21.54869],[39.62844,21.55042],[39.62217,21.5524],[39.61667,21.55451],[39.61078,21.55651],[39.60525,21.55707],[39.60281,21.55632],[39.59676,21.55438],[39.59336,21.55282],[39.59064,21.55161],[39.58531,21.55066],[39.58107,21.55173],[39.57712,21.55395],[39.57412,21.55548],[39.57162,21.55565],[39.56737,21.55468],[39.56337,21.55266],[39.56123,21.55094],[39.55836,21.54756],[39.55599,21.54413],[39.55217,21.5424],[39.54979,21.54137],[39.54395,21.53998],[39.54002,21.53929]];
+ const muniLayer=L.polygon(muniBoundary,{color:'#ff2d55',weight:4,dashArray:'10 6',fillColor:'#ff2d55',fillOpacity:0.08,opacity:1}).bindPopup('<b>Όρια Δήμου Τρικκαίων</b><br>Διοικητικά όρια (OpenStreetMap · σχέση 2238562).<br>Έκταση ~608 km² · πηγή: OSM / Nominatim.').addTo(map);
+
+ // Κύρια ποτάμια — ουδέτερο μπλε, πάντα ορατά
+ L.polyline([[39.61498,21.7497],[39.61211,21.76172],[39.60384,21.76465],[39.6014,21.76353],[39.59915,21.76368],[39.59041,21.76458],[39.58332,21.75499],[39.58156,21.75393],[39.57075,21.75601],[39.56604,21.75808],[39.56076,21.76055],[39.55944,21.75966],[39.55565,21.76283],[39.55544,21.76792],[39.5508,21.77151],[39.54971,21.77392],[39.54788,21.77542],[39.54321,21.77449],[39.53234,21.77183],[39.52969,21.77243],[39.52701,21.76981],[39.52452,21.77179],[39.52315,21.77542],[39.52047,21.77834],[39.51693,21.77888],[39.51642,21.78222],[39.51501,21.78321]],{pane:'rivers',color:'#2b6cb0',weight:4,opacity:0.95}).bindPopup('<b>Ληθαίος</b>').addTo(river);
+ L.polyline([[39.54418,21.76244],[39.54319,21.76171],[39.54231,21.76009],[39.5418,21.75947],[39.54061,21.75973],[39.53973,21.75994],[39.53958,21.76143],[39.54012,21.76272],[39.53987,21.76391],[39.5394,21.76538],[39.53603,21.76781],[39.53422,21.77054],[39.53284,21.77191]],{pane:'rivers',color:'#4299e1',weight:3,opacity:0.9}).bindPopup('<b>Αγιαμονιώτης</b>').addTo(river);
+ L.polyline([[39.44377,21.72805],[39.44862,21.73561],[39.4496,21.74509],[39.45117,21.75076],[39.44986,21.75255],[39.45212,21.7584],[39.45417,21.76187],[39.4586,21.76615],[39.45942,21.76868],[39.45957,21.7722],[39.45994,21.77451],[39.46159,21.77765],[39.46261,21.78446],[39.46264,21.78753],[39.46222,21.79334],[39.48055,21.81306],[39.49861,21.82796],[39.50045,21.83064],[39.50224,21.83291],[39.50355,21.83464]],{pane:'rivers',color:'#3182ce',weight:4,opacity:0.95}).bindPopup('<b>Πάμισος</b>').addTo(river);
+ L.polyline([[39.62279,21.641],[39.61326,21.64679],[39.60322,21.6542],[39.59543,21.65697],[39.58783,21.65751],[39.58146,21.66135],[39.57691,21.66224],[39.57229,21.66338],[39.56773,21.668],[39.56309,21.67463],[39.55941,21.68564],[39.55487,21.69566],[39.55023,21.70396],[39.54658,21.70954],[39.52799,21.72619],[39.52716,21.72966],[39.52378,21.73607],[39.52231,21.74378],[39.516,21.74732],[39.51113,21.76099],[39.51379,21.76686],[39.51506,21.78261],[39.51422,21.78891],[39.51097,21.79767],[39.50636,21.80908],[39.50403,21.8273],[39.50693,21.83853],[39.51271,21.84686],[39.51173,21.85732],[39.50871,21.87535]],{pane:'rivers',color:'#1a365d',weight:5,opacity:0.95}).bindPopup('<b>Πηνειός</b>').addTo(river);
+ // Μόνιμες ετικέτες ονομάτων ποταμών στον χάρτη
+ function riverLabel(lat, lon, name, color){
+   return L.marker([lat, lon], {
+     pane:'rivers', interactive:false,
+     icon: L.divIcon({
+       className:'river-label',
+       html:'<span style="background:'+color+';color:#fff;padding:3px 8px;border-radius:6px;font:700 12px/1.2 system-ui,sans-serif;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.85)">'+name+'</span>',
+       iconSize:[90,22], iconAnchor:[45,11]
+     })
+   });
+ }
+ riverLabel(39.5555, 21.7685, 'Ληθαίος', '#2b6cb0').addTo(river);
+ riverLabel(39.5385, 21.7650, 'Αγιαμονιώτης', '#4299e1').addTo(river);
+ riverLabel(39.4620, 21.7780, 'Πάμισος', '#3182ce').addTo(river);
+ riverLabel(39.5550, 21.6950, 'Πηνειός', '#1a365d').addTo(river);
+
+ // Άξονες διαφυγής (ενδεικτικοί — να επαληθευτούν με Δήμο)
+ const ESCAPE_ROUTES = [
+   {name:'Διαφυγή ΔΥΤΙΚΑ — Ε.Ο. Τρικάλων–Καλαμπάκας', coords:[[39.555,21.767],[39.560,21.750],[39.568,21.735],[39.575,21.720]]},
+   {name:'Διαφυγή ΑΝΑΤΟΛΙΚΑ — Ε.Ο. Τρικάλων–Λάρισας', coords:[[39.555,21.767],[39.555,21.790],[39.555,21.820],[39.560,21.850]]},
+   {name:'Διαφυγή ΝΟΤΙΑ — προς Καρδίτσα (Ε.Ο. 30)', coords:[[39.555,21.767],[39.540,21.775],[39.520,21.785],[39.500,21.790]]},
+   {name:'Διαφυγή από Μεγάλα Καλύβια → βόρεια', coords:[[39.498,21.785],[39.510,21.780],[39.525,21.775],[39.540,21.770]]}
+ ];
+ const escapeLayer = L.layerGroup().addTo(map);
+ ESCAPE_ROUTES.forEach(function(r){
+   L.polyline(r.coords, {color:'#16a34a', weight:5, opacity:0.85, dashArray:'12 8'})
+    .bindPopup('<b>'+r.name+'</b><br><small>Ενδεικτικός άξονας διαφυγής. Να επαληθευτεί με το Σχέδιο Πολιτικής Προστασίας του Δήμου.</small>')
+    .addTo(escapeLayer);
+ });
+
+ // Γεωμετρίες από OpenStreetMap (απλοποιημένες) — © OSM contributors ODbL
+    
+ // Official flood extent WMS — ΥΠΕΝ ΣΔΚΠ EL08 (1η Αναθεώρηση)
+ const wmsBase = 'https://gis.floods.ypeka.gr/geoserver/floods_rev1/wms';
+ const floodLayers = {
+   '50': L.tileLayer.wms(wmsBase, {layers:'el08_friv_0050_rev1', format:'image/png', transparent:true, version:'1.3.0', attribution:'ΥΠΕΝ ΣΔΚΠ EL08 · όρια Τ=50', opacity:0.50, maxZoom:19}),
+   '100': L.tileLayer.wms(wmsBase, {layers:'el08_friv_0100_rev1', format:'image/png', transparent:true, version:'1.3.0', attribution:'ΥΠΕΝ ΣΔΚΠ EL08 · όρια Τ=100', opacity:0.50, maxZoom:19}),
+   '1000': L.tileLayer.wms(wmsBase, {layers:'el08_friv_1000_rev1', format:'image/png', transparent:true, version:'1.3.0', attribution:'ΥΠΕΝ ΣΔΚΠ EL08 · όρια Τ=1000', opacity:0.45, maxZoom:19})
+ };
+ const depthLayers = {
+   '50': L.tileLayer.wms(wmsBase, {layers:'EL08_DMAX_0050', format:'image/png', transparent:true, version:'1.3.0', attribution:'ΥΠΕΝ · βάθος Τ=50', opacity:0.55, maxZoom:19}),
+   '100': L.tileLayer.wms(wmsBase, {layers:'EL08_DMAX_0100', format:'image/png', transparent:true, version:'1.3.0', attribution:'ΥΠΕΝ · βάθος Τ=100', opacity:0.55, maxZoom:19}),
+   '1000': L.tileLayer.wms(wmsBase, {layers:'EL08_DMAX_1000', format:'image/png', transparent:true, version:'1.3.0', attribution:'ΥΠΕΝ · βάθος Τ=1000', opacity:0.50, maxZoom:19})
+ };
+ const velLayers = {
+   '50': L.tileLayer.wms(wmsBase, {layers:'EL08_VMAX_0050', format:'image/png', transparent:true, version:'1.3.0', attribution:'ΥΠΕΝ · ταχύτητα Τ=50', opacity:0.55, maxZoom:19}),
+   '100': L.tileLayer.wms(wmsBase, {layers:'EL08_VMAX_0100', format:'image/png', transparent:true, version:'1.3.0', attribution:'ΥΠΕΝ · ταχύτητα Τ=100', opacity:0.55, maxZoom:19}),
+   '1000': L.tileLayer.wms(wmsBase, {layers:'EL08_VMAX_1000', format:'image/png', transparent:true, version:'1.3.0', attribution:'ΥΠΕΝ · ταχύτητα Τ=1000', opacity:0.50, maxZoom:19})
+ };
+ const riskLayers = {
+   '50': L.tileLayer.wms(wmsBase, {layers:'el08_risk_0050', format:'image/png', transparent:true, version:'1.3.0', attribution:'ΥΠΕΝ · κίνδυνος Τ=50', opacity:0.55, maxZoom:19}),
+   '100': L.tileLayer.wms(wmsBase, {layers:'el08_risk_0100', format:'image/png', transparent:true, version:'1.3.0', attribution:'ΥΠΕΝ · κίνδυνος Τ=100', opacity:0.55, maxZoom:19}),
+   '1000': L.tileLayer.wms(wmsBase, {layers:'el08_risk_1000', format:'image/png', transparent:true, version:'1.3.0', attribution:'ΥΠΕΝ · κίνδυνος Τ=1000', opacity:0.50, maxZoom:19})
+ };
+ const apsfrLayer = L.tileLayer.wms(wmsBase, {layers:'hyp_pol_apsfr2019_v1', format:'image/png', transparent:true, version:'1.3.0', attribution:'ΥΠΕΝ · EL08APSFR003', opacity:0.55, maxZoom:19, CQL_FILTER:"code_new='EL08APSFR003'"});
+ // Υδρολογικός χάρτης: λεπτομερές δίκτυο από OpenStreetMap (Overpass) + επίσημο WMS ΥΠΕΝ (αν διαθέσιμο)
+
+const HYDRO_EMBEDDED = [
+  /* Πηνειός — κύριος αποδέκτης, νότια/ανατολικά όρια Δήμου */
+  {name:'Πηνειός', wt:'river', coords:[
+    [39.6228,21.6410],[39.6133,21.6468],[39.6020,21.6550],[39.5900,21.6680],
+    [39.5750,21.6900],[39.5600,21.7200],[39.5450,21.7550],[39.5300,21.7900],
+    [39.5150,21.8200],[39.5000,21.8500],[39.4850,21.8800]
+  ]},
+  /* Ληθαίος — διασχίζει την πόλη, παραπόταμος Πηνειού */
+  {name:'Ληθαίος', wt:'river', coords:[
+    [39.6150,21.7497],[39.6121,21.7617],[39.6038,21.7647],[39.6014,21.7635],
+    [39.5992,21.7637],[39.5904,21.7646],[39.5833,21.7550],[39.5816,21.7539],
+    [39.5708,21.7560],[39.5660,21.7581],[39.5608,21.7606],[39.5594,21.7597],
+    [39.5550,21.7620],[39.5520,21.7650],[39.5485,21.7680],[39.5450,21.7720],
+    [39.5400,21.7780],[39.5350,21.7850],[39.5280,21.7920],[39.5200,21.8000]
+  ]},
+  /* Παραληθαίος — παραπόταμος Ληθαίου (περιοχή Περδικορράχης / βόρεια) */
+  {name:'Παραληθαίος', wt:'stream', coords:[
+    [39.6050,21.7900],[39.5980,21.7820],[39.5900,21.7750],[39.5820,21.7700],
+    [39.5750,21.7660],[39.5680,21.7620]
+  ]},
+  /* Αγιαμονιώτης — δυτικά της πόλης, συμβολή με Ληθαίο / Πηνειό νότια */
+  {name:'Αγιαμονιώτης', wt:'stream', coords:[
+    [39.5600,21.7000],[39.5550,21.7150],[39.5500,21.7300],[39.5480,21.7450],
+    [39.5460,21.7550],[39.5442,21.7624],[39.5432,21.7617],[39.5400,21.7700],
+    [39.5350,21.7800],[39.5280,21.7880],[39.5220,21.7950]
+  ]},
+  /* Κουμέρκης — δυτικά πεδινό τμήμα, παράλληλα προς Πηνειό, συμβολή κοντά Φλαμούλι */
+  {name:'Κουμέρκης', wt:'stream', coords:[
+    [39.5750,21.6800],[39.5680,21.6950],[39.5600,21.7100],[39.5520,21.7250],
+    [39.5450,21.7400],[39.5380,21.7550],[39.5300,21.7680],[39.5250,21.7780]
+  ]},
+  /* Πάμισος — νοτιοδυτικά Δήμου (προς Πύλη / ορεινά) */
+  {name:'Πάμισος', wt:'river', coords:[
+    [39.4438,21.7281],[39.4486,21.7356],[39.4600,21.7500],[39.4750,21.7650],
+    [39.4900,21.7750],[39.5050,21.7800],[39.5150,21.7820]
+  ]},
+  /* Νέα κοίτη Ληθαίου / αντιπλημμυρική τάφρος (νότια πόλης προς Πηνειό) */
+  {name:'Νέα κοίτη Ληθαίου (τάφρος)', wt:'canal', coords:[
+    [39.5450,21.7700],[39.5400,21.7800],[39.5320,21.7900],[39.5250,21.8000],
+    [39.5180,21.8100]
+  ]},
+  /* Τάφρος Μπαλκούρας (απορροή όμβριων Μπάρας) */
+  {name:'Τάφρος Μπαλκούρας', wt:'canal', coords:[
+    [39.5480,21.7600],[39.5450,21.7650],[39.5420,21.7720],[39.5380,21.7800],
+    [39.5320,21.7880]
+  ]}
+];
+ const hydroNet = L.layerGroup();
+ var hydroLoaded = false;
+ function loadHydroNetwork(){
+   if(hydroLoaded) return;
+   hydroNet.clearLayers();
+   HYDRO_EMBEDDED.forEach(function(r){
+     var style;
+     if(r.wt==='river') style = {pane:'rivers', color:'#2b6cb0', weight:4.5, opacity:0.95};
+     else if(r.wt==='canal') style = {pane:'rivers', color:'#38a169', weight:2.5, opacity:0.85, dashArray:'6 4'};
+     else style = {pane:'rivers', color:'#63b3ed', weight:3, opacity:0.9}; // stream
+     L.polyline(r.coords, style).bindPopup('<b>'+r.name+'</b><br><small>Υδρογραφικό δίκτυο Δήμου Τρικκαίων (ενδεικτική χάραξη)</small>').addTo(hydroNet);
+   });
+ const HIST_FLOOD_ZONES = [
+   {name:'Μεγάλα Καλύβια — κατάκλυση Daniel 2023', coords:[[39.505,21.775],[39.505,21.800],[39.490,21.800],[39.490,21.775]]},
+   {name:'Μπάρα / ΝΔ αστική ζώνη — όμβρια Daniel', coords:[[39.550,21.755],[39.550,21.775],[39.540,21.775],[39.540,21.755]]},
+   {name:'Νότιο πεδίο προς Πηνειό (ενδεικτική ζώνη)', coords:[[39.520,21.760],[39.520,21.820],[39.490,21.820],[39.490,21.760]]}
+ ];
+ const histFlood = L.layerGroup();
+ HIST_FLOOD_ZONES.forEach(function(z){
+   L.polygon(z.coords,{color:'#b91c1c',weight:2,opacity:0.9,fillColor:'#ef4444',fillOpacity:0.18,dashArray:'4 4'})
+    .bindPopup('<b>'+z.name+'</b><br><small>Ενδεικτικό πολύγωνο (αναφορές Daniel 2023) — όχι επίσημο όριο ΥΠΕΝ/Copernicus.</small>')
+    .addTo(histFlood);
+ });
+
+   hydroLoaded = true;
+   var statusEl = document.getElementById('hydroStatus');
+   if(statusEl) statusEl.textContent = 'Εμφανίζονται τα 4 κύρια ποτάμια (ενσωματωμένα).';
+ }
+ // Επίσημο WMS ΥΠΕΝ — συχνά μόνο HTTP· δοκιμάζεται ως εναλλακτικό
+ const hydroOfficial = L.tileLayer.wms('http://geoportal.ypen.gr/geoserver/wfd-rivers-line-wms/wms', {
+   layers:'AM.WaterBodyForWFD', format:'image/png', transparent:true, version:'1.3.0',
+   attribution:'ΥΠΕΝ · Ποτάμια υδατικά συστήματα (Οδηγία 2000/60)', opacity:0.8, maxZoom:18
+ });
+ function updateFloodLayers(){
+   var masterOn = document.getElementById('floodToggle').checked;
+   document.getElementById('floodOptions').style.display = masterOn ? 'block' : 'none';
+   Object.keys(floodLayers).forEach(function(period){
+     var el = document.querySelector('.floodPeriod[value="'+period+'"]');
+     var checked = masterOn && el && el.checked;
+     if(checked){ if(!map.hasLayer(floodLayers[period])) map.addLayer(floodLayers[period]); }
+     else { if(map.hasLayer(floodLayers[period])) map.removeLayer(floodLayers[period]); }
+   });
+ }
+ const points=[
+  {id:'H1',name:'Γενικό Νοσοκομείο Τρικάλων',cat:'hospital',lat:39.54722,lon:21.77261,status:'Κρίσιμη υποδομή υγείας — OSM/Nominatim',desc:'Καρδίτσης 56. Έλεγχος πρόσβασης ασθενοφόρων, γεννήτριας και ΤΕΠ σε πλημμυρικό γεγονός.'},
+  {id:'E1',name:'Πυροσβεστική Υπηρεσία Τρικάλων',cat:'emergency',lat:39.56126,lon:21.77065,status:'Κρίσιμη υποδομή πολιτικής προστασίας — OSM',desc:'Γεωργίου Κονδύλη 64, περιοχή Λογγάκι. Σημείο αναφοράς απόκρισης.'},
+  {id:'E2',name:'Διεύθυνση Αστυνομίας Τρικάλων',cat:'emergency',lat:39.55887,lon:21.77558,status:'Κρίσιμη υποδομή δημόσιας τάξης — govmap',desc:'Γιαννιτσών & Φαρμάκη. Διεύθυνση Αστυνομίας και Α.Τ. Τρικάλων.'},
+  {id:'E3',name:'Δημαρχείο Τρικκαίων',cat:'emergency',lat:39.55184,lon:21.76612,status:'Διοίκηση Δήμου — govmap',desc:'Ασκληπιού 18. Κέντρο συντονισμού σε έκτακτα γεγονότα.'},
+  {id:'E4',name:'Πολιτική Προστασία Δήμου',cat:'emergency',lat:39.5545,lon:21.7685,status:'Γραφείο Πολιτικής Προστασίας — ενδεικτικό',desc:'Τμήμα Κυκλοφορίας και Πολιτικής Προστασίας (Ιακωβάκη 5). Συντονισμός τοπικής απόκρισης. Συντεταγμένες ενδεικτικές.'},
+  {id:'E5',name:'ΕΚΑΒ Τρικάλων',cat:'emergency',lat:39.5475,lon:21.7720,status:'Άμεση βοήθεια — vrisko/xo.gr',desc:'Καρδίτσης 54 (κοντά στο νοσοκομείο). Σταθμός ασθενοφόρων.'},
+  {id:'S1',name:'1ο Γυμνάσιο Τρικάλων',cat:'schools',lat:39.56512,lon:21.77167,status:'Σχολική μονάδα — OSM',desc:'Καταραχιά, Λογγάκι. Πιθανό σημείο συγκέντρωσης / ευάλωτος πληθυσμός (μαθητές).'},
+  {id:'S2',name:'2ο Δημοτικό Σχολείο Τρικάλων',cat:'schools',lat:39.55019,lon:21.77179,status:'Σχολική μονάδα — OSM',desc:'Βύρωνος 51. Ευάλωτος πληθυσμός (μαθητές) εντός αστικού ιστού.'},
+  {id:'B1',name:'Γέφυρες Ληθαίου (κέντρο πόλης)',cat:'bridges',lat:39.5550,lon:21.7670,status:'Περιοχή γεφυρών κέντρου — ενδεικτικό σημείο',desc:'Περιοχή κεντρικών διαβάσεων Ληθαίου. Να επιβεβαιωθούν μία προς μία οι γέφυρες με αρμόδια υπηρεσία.'},
+  {id:'B2',name:'Γέφυρα / περιοχή Βαλομανδρίου (Πηνειός)',cat:'bridges',lat:39.5480,lon:21.6992,status:'Κρίσιμη διάβαση Πηνειού — ιστορικά προβλήματα (Daniel 2023)',desc:'Περιοχή Βαλομανδρίου. Καταγραφές ζημιών οδού/αναχωμάτων στη πλημμύρα 2023.'},
+  {id:'R1',name:'Χαμηλά σημεία οδικού δικτύου (πόλη)',cat:'roads',lat:39.5528,lon:21.7714,status:'Ενδεικτικό σημείο — προς επιτόπια επιβεβαίωση',desc:'Περιοχές αστικής απορροής / χαμηλά σημεία εντός πόλης.'},
+  {id:'R2',name:'Οδός Τρίκαλα–Ρόγκια (περιοχή)',cat:'roads',lat:39.5581,lon:21.7336,status:'Οδικός άξονας προς Ρόγκια — OSM',desc:'Σύνδεση δυτικά της πόλης. Έλεγχος βατότητας σε υπερχείλιση Πηνειού.'},
+  {id:'U1',name:'ΔΕΥΑΤ — αποθήκες / αμαξοστάσιο',cat:'utilities',lat:39.53772,lon:21.75509,status:'Υποδομή ύδρευσης — OSM/Nominatim',desc:'Εγκαταστάσεις ΔΕΥΑΤ (Πύλης / Φλαμούλι). Σημείο ενδιαφέροντος για συνέχεια ύδρευσης.'},
+  {id:'V1',name:'Μεγάλα Καλύβια',cat:'villages',lat:39.498,lon:21.785,status:'Χωριό Δήμου — βαριά πληγέν Daniel 2023',desc:'Πεδινός οικισμός. Εκατοντάδες πλημμυρισμένα σπίτια, εγκλωβισμοί (Σεπ. 2023).'},
+  {id:'V2',name:'Αγία Κυριακή',cat:'villages',lat:39.520,lon:21.810,status:'Χωριό Δήμου — ιστορικά πληγέν',desc:'Πεδινή ζώνη. Έλεγχος πρόσβασης και χαμηλών σημείων.'},
+  {id:'V3',name:'Φωτάδα',cat:'villages',lat:39.5516,lon:21.6844,status:'Χωριό Δήμου (Δ.Ε. Καλλιδένδρου)',desc:'Δυτικά της πόλης, κοντά σε ζώνη Πηνειού.'},
+  {id:'V6',name:'Μεγάρχη',cat:'villages',lat:39.6077,lon:21.6399,status:'Χωριό Δήμου (Δ.Ε. Φαλώρειας) — δυτικές όχθες Πηνειού',desc:'~14 km ΒΔ Τρικάλων, στις δυτικές όχθες του Πηνειού.'},
+  {id:'V4',name:'Οικισμός Τρίκκη',cat:'villages',lat:39.548,lon:21.755,status:'Οικισμός εντός / πλησίον πόλης',desc:'Τοπικά προβλήματα ομβρίων / απορροής.'},
+  {id:'V5',name:'Βαλομάνδρι',cat:'villages',lat:39.5480,lon:21.6992,status:'Οικισμός — ιστορικά πληγείς (Πηνειός)',desc:'Περιοχή γεφύρας/αναχωμάτων Πηνειού με καταγραφές 2023.'},
+  {id:'D1',name:'Ιστορικό: Daniel 2023 — Μεγάλα Καλύβια',cat:'history',lat:39.500,lon:21.788,status:'Ιστορική πλημμύρα Σεπ. 2023 (αναφορές τύπου / αυτοδιοίκησης)',desc:'Μαζικοί εγκλωβισμοί, πλημμυρισμένα σπίτια, επιχειρήσεις απεγκλωβισμού (15 άτομα διασώθηκαν από το χωριό στις αναφορές της 8ης Σεπ.). Κηρύχθηκε καθολικά πλημμυροπαθές· πλημμύρισε το σχολείο. Όχι επίσημο σημείο ΥΠΕΝ — τεκμηρίωση από δημόσιες αναφορές.'},
+  {id:'D2',name:'Ιστορικό: Daniel 2023 — περιοχή Βαλομανδρίου',cat:'history',lat:39.547,lon:21.702,status:'Ιστορική πλημμύρα Σεπ. 2023 — οδός/ανάχωμα',desc:'Καταγραφές διακοπής οδού και φερτών υλών κοντά στη γέφυρα Πηνειού. Το Βαλομάνδρι ήταν μεταξύ των περιοχών με μήνυμα 112 (7 Σεπ. 2023).'},
+  {id:'D3',name:'Ιστορικό: υπερχείλιση Ληθαίου (πόλη)',cat:'history',lat:39.5555,lon:21.7680,status:'Ιστορικές υπερχειλίσεις Ληθαίου εντός πόλης',desc:'Επαναλαμβανόμενες ανησυχίες στάθμης Ληθαίου στο κέντρο (συμπ. γεγονότα 2023).'},
+  {id:'ST1',name:'Σταθμός Lithaios (ΕΛΚΕΘΕ)',cat:'stations',lat:39.5523,lon:21.7707,status:'Σταθμός ΕΛΚΕΘΕ · Ληθαίος · στάθμη · εντός πόλης',desc:'Αυτόματος σταθμός μέτρησης στάθμης στον Ληθαίο, στην πόλη των Τρικάλων. Κωδικός δικτύου: lithaios. Συντεταγμένες από τον κατάλογο σταθμών ΕΛΚΕΘΕ.'},
+  {id:'ST2',name:'Σταθμός Flamouli (ΕΛΚΕΘΕ)',cat:'stations',lat:39.5265,lon:21.7696,status:'Σταθμός ΕΛΚΕΘΕ · Ληθαίος · στάθμη · νότια της πόλης',desc:'Στάθμη Ληθαίου στο Φλαμούλι, κατάντη του κέντρου. Κωδικός δικτύου: flamouli.'},
+  {id:'ST3',name:'Σταθμός Raxa Meteo (ΕΛΚΕΘΕ)',cat:'stations',lat:39.615,lon:21.7437,status:'Σταθμός ΕΛΚΕΘΕ · μετεωρολογικός (βροχή) · βόρεια της πόλης',desc:'Μετεωρολογικός σταθμός στην περιοχή Ράχης, στη λεκάνη του Ληθαίου. Κωδικός δικτύου: raxa-meteo.'},
+  {id:'ST4',name:'Σταθμός Dialexto (ΕΛΚΕΘΕ)',cat:'stations',lat:39.6003,lon:21.6556,status:'Σταθμός ΕΛΚΕΘΕ · Πηνειός · στάθμη · βορειοδυτικά',desc:'Στάθμη Πηνειού στο ανάντη τμήμα του Δήμου, κοντά στη Μεγάρχη. Κωδικός δικτύου: dialexto.'},
+  {id:'ST5',name:'Σταθμός Parapotamos (ΕΛΚΕΘΕ)',cat:'stations',lat:39.5304,lon:21.7055,status:'Σταθμός ΕΛΚΕΘΕ · Πηνειός · στάθμη',desc:'Στάθμη Πηνειού στην περιοχή Παραπόταμου, οικισμού που έλαβε μήνυμα 112 στον Daniel. Κωδικός δικτύου: parapotamos.'},
+  {id:'ST6',name:'Σταθμός Theopetra (ΕΛΚΕΘΕ)',cat:'stations',lat:39.6748,lon:21.6788,status:'Σταθμός ΕΛΚΕΘΕ · Ληθαίος · στάθμη · ανάντη, εκτός ορίων Δήμου',desc:'Βρίσκεται στον Ληθαίο ανάντη του Δήμου· επηρεάζει την παροχή που φτάνει στην πόλη. Κωδικός δικτύου: theopetra.'},
+  {id:'ST7',name:'Σταθμός Gorgogiri (ΕΛΚΕΘΕ)',cat:'stations',lat:39.5508,lon:21.5722,status:'Σταθμός ΕΛΚΕΘΕ · Κεφαλοπόταμος · στάθμη και ποιότητα · δυτικά, εκτός ορίων',desc:'Ο κατάλογος τον ονομάζει «Γοργογύρι Τρικάλων». Η σχέση του με τον Δήμο (παραπόταμος ανάντη) χρειάζεται επιβεβαίωση. Κωδικός δικτύου: gorgogyrh-trikalon.'},
+  /* ---- Σχολεία (δημοτικά / γυμνάσια / λύκεια / νηπιαγωγεία) — συντεταγμένες ενδεικτικές ---- */
+  {id:'S3',name:'1ο Δημοτικό Σχολείο Τρικάλων (Δωρόθεος Σχολάριος)',cat:'schools',lat:39.5568,lon:21.7689,status:'Δημοτικό — Δερβενακίων & Ντάη',desc:'Κεντρικό δημοτικό. Ευάλωτος πληθυσμός μαθητών· πιθανό σημείο συγκέντρωσης.'},
+  {id:'S4',name:'3ο Δημοτικό Σχολείο Τρικάλων',cat:'schools',lat:39.5535,lon:21.7708,status:'Δημοτικό — Αβέρωφ 43',desc:'Αστικό δημοτικό εντός πόλης.'},
+  {id:'S5',name:'4ο Δημοτικό Σχολείο Τρικάλων',cat:'schools',lat:39.5525,lon:21.7695,status:'Δημοτικό — πλατεία Αγίας Επισκέψεως',desc:'Κεντρικό δημοτικό.'},
+  {id:'S6',name:'10ο Δημοτικό Σχολείο Τρικάλων',cat:'schools',lat:39.5625,lon:21.7755,status:'Δημοτικό — Καστρακίδου & Μακεδονίας τέρμα',desc:'Περιοχή Αγ. Νεκταρίου / Μακεδονίας.'},
+  {id:'S7',name:'11ο Δημοτικό Σχολείο Τρικάλων',cat:'schools',lat:39.5590,lon:21.7620,status:'Δημοτικό — Σύρου 1',desc:'Κοντά σε 7ο Γυμνάσιο.'},
+  {id:'S8',name:'12ο Δημοτικό Σχολείο Τρικάλων',cat:'schools',lat:39.5540,lon:21.7605,status:'Δημοτικό — Δεληγιάννη',desc:'Αστικό δημοτικό.'},
+  {id:'S9',name:'14ο Δημοτικό Σχολείο Τρικάλων (Φλαμούλι)',cat:'schools',lat:39.5270,lon:21.7700,status:'Δημοτικό — Φλαμούλι',desc:'Νότια της πόλης, κοντά σε σταθμό Flamouli.'},
+  {id:'S10',name:'24ο Δημοτικό Σχολείο Τρικάλων',cat:'schools',lat:39.5485,lon:21.7780,status:'Δημοτικό — Νεραΐδας / Σεισμόπληκτα',desc:'Περιοχή Σεισμοπλήκτων · χαμηλά σημεία.'},
+  {id:'S11',name:'25ο Δημοτικό Σχολείο Τρικάλων',cat:'schools',lat:39.5450,lon:21.7650,status:'Δημοτικό — Ζηλευτής / Αλώνια Μπάρας',desc:'Περιοχή Μπάρας — ιστορικά ευάλωτη σε όμβρια.'},
+  {id:'S12',name:'27ο Δημοτικό Σχολείο Τρικάλων',cat:'schools',lat:39.5510,lon:21.7650,status:'Δημοτικό — Ευκλείδη / Αριστείδης Παππάς',desc:'Αστικό δημοτικό.'},
+  {id:'S13',name:'31ο Δημοτικό Σχολείο Τρικάλων',cat:'schools',lat:39.5575,lon:21.7610,status:'Δημοτικό — Σουλίου',desc:'Αστικό δημοτικό.'},
+  {id:'S14',name:'35ο Δημοτικό Σχολείο Τρικάλων',cat:'schools',lat:39.5590,lon:21.7580,status:'Δημοτικό — Ιθάκης & Μακρονήσου',desc:'Αστικό δημοτικό.'},
+  {id:'S15',name:'2ο Γυμνάσιο Τρικάλων',cat:'schools',lat:39.5585,lon:21.7720,status:'Γυμνάσιο — Κατσιμήδου 5',desc:'Κεντρικό γυμνάσιο.'},
+  {id:'S16',name:'3ο Γυμνάσιο Τρικάλων',cat:'schools',lat:39.5555,lon:21.7750,status:'Γυμνάσιο — Βαλαωρίτου 27',desc:'Κεντρικό γυμνάσιο.'},
+  {id:'S17',name:'4ο Γυμνάσιο Τρικάλων (Γ. Σεφέρης)',cat:'schools',lat:39.5520,lon:21.7680,status:'Γυμνάσιο — Πλαστήρα',desc:'Κεντρικό γυμνάσιο.'},
+  {id:'S18',name:'5ο Γυμνάσιο Τρικάλων',cat:'schools',lat:39.5600,lon:21.7550,status:'Γυμνάσιο — Καλαμπάκας',desc:'Προς δυτικά της πόλης.'},
+  {id:'S19',name:'6ο Γυμνάσιο Τρικάλων',cat:'schools',lat:39.5480,lon:21.7600,status:'Γυμνάσιο — Αγία Μονή',desc:'Περιοχή Αγίας Μονής.'},
+  {id:'S20',name:'7ο Πειραματικό Γυμνάσιο Τρικάλων',cat:'schools',lat:39.5595,lon:21.7615,status:'Πειραματικό Γυμνάσιο — Σύρου 50',desc:'Πειραματικό σχολείο.'},
+  {id:'S21',name:'1ο ΓΕΛ Τρικάλων',cat:'schools',lat:39.5650,lon:21.7710,status:'Γενικό Λύκειο — Κονδύλη τέρμα',desc:'Κοντά στο 1ο Γυμνάσιο.'},
+  {id:'S22',name:'2ο ΓΕΛ Τρικάλων',cat:'schools',lat:39.5588,lon:21.7725,status:'Γενικό Λύκειο — Κατσιμήδου 7',desc:'Κοντά στο 2ο Γυμνάσιο.'},
+  {id:'S23',name:'3ο ΓΕΛ Τρικάλων',cat:'schools',lat:39.5500,lon:21.7800,status:'Γενικό Λύκειο — Κακοπλευρίου',desc:'Ανατολικά της πόλης.'},
+  {id:'S24',name:'4ο Πειραματικό ΓΕΛ Τρικάλων',cat:'schools',lat:39.5570,lon:21.7650,status:'Πειραματικό ΓΕΛ — Ζηνοδότου 4',desc:'Πειραματικό λύκειο.'},
+  {id:'S25',name:'1ο ΕΠΑΛ Τρικάλων',cat:'schools',lat:39.5620,lon:21.7780,status:'Επαγγελματικό Λύκειο — Μακεδονίας τέρμα',desc:'Επαγγελματική εκπαίδευση· μεγάλος αριθμός μαθητών.'},
+  {id:'S26',name:'Μουσικό Σχολείο Τρικάλων',cat:'schools',lat:39.5450,lon:21.7900,status:'Μουσικό Σχολείο — Ριζαριό',desc:'Δημοκρίτου / Περιφερειακή Ριζαριού.'},
+  {id:'S27',name:'Γυμνάσιο Μεγάλων Καλυβίων',cat:'schools',lat:39.4995,lon:21.7865,status:'Γυμνάσιο χωριού — βαριά πληγέν 2023',desc:'Σχολείο σε οικισμό που πλημμύρισε στον Daniel· κρίσιμο για εκκένωση μαθητών.'},
+  {id:'S28',name:'Δημοτικό Σχολείο Μεγάλων Καλυβίων',cat:'schools',lat:39.4985,lon:21.7855,status:'Δημοτικό χωριού — πλημμύρισε 2023',desc:'Πλημμύρισε κατά τον Daniel· αναφορές αποκατάστασης.'},
+  {id:'S29',name:'Γυμνάσιο / ΓΕΛ Βαλτινού',cat:'schools',lat:39.5800,lon:21.7200,status:'Σχολεία Βαλτινού',desc:'Οικισμός Δήμου· έλεγχος πρόσβασης.'},
+  {id:'S30',name:'Δημοτικό Σχολείο Βαλτινού',cat:'schools',lat:39.5805,lon:21.7205,status:'Δημοτικό χωριού — Βαλτινό',desc:'Οικισμός Δήμου.'},
+  {id:'S31',name:'20ό Νηπιαγωγείο Τρικάλων (παθητικό)',cat:'schools',lat:39.5550,lon:21.7750,status:'Νηπιαγωγείο — Ελληνικού Στρατού 12 · παθητικό κτίριο',desc:'Πρώτο δημόσιο παθητικό σχολείο στην Ελλάδα. Ευάλωτος πληθυσμός νηπίων.'},
+  {id:'S32',name:'3ο Νηπιαγωγείο Τρικάλων',cat:'schools',lat:39.5570,lon:21.7620,status:'Νηπιαγωγείο — Σουλίου',desc:'Αστικό νηπιαγωγείο.'},
+  {id:'S33',name:'7ο Νηπιαγωγείο Τρικάλων',cat:'schools',lat:39.5600,lon:21.7680,status:'Νηπιαγωγείο — Λέρου 1',desc:'Αστικό νηπιαγωγείο.'},
+  {id:'S34',name:'8ο Νηπιαγωγείο Τρικάλων (Μπάρα)',cat:'schools',lat:39.5460,lon:21.7630,status:'Νηπιαγωγείο — Αγαριστής Μπάρα',desc:'Περιοχή Μπάρας · ιστορικά ευάλωτη σε όμβρια.'},
+  {id:'S35',name:'12ο Νηπιαγωγείο Τρικάλων',cat:'schools',lat:39.5580,lon:21.7700,status:'Νηπιαγωγείο — πάροδος Μαβίλη',desc:'Αστικό νηπιαγωγείο.'},
+  {id:'S36',name:'Νηπιαγωγείο Αγίου Κωνσταντίνου',cat:'schools',lat:39.5545,lon:21.7720,status:'Νηπιαγωγείο — Φλέμινγκ 6',desc:'Κοντά σε Ι.Ν. Αγίου Κωνσταντίνου.'},
+  /* ---- Βρεφικοί / βρεφονηπιακοί / παιδικοί σταθμοί Δήμου Τρικκαίων ---- */
+  {id:'DC1',name:'Α΄ Βρεφονηπιακός Σταθμός (Σκουφά 3)',cat:'daycare',lat:39.5540,lon:21.7700,status:'Δημοτικός βρεφονηπιακός — κέντρο',desc:'Σκουφά 3. Ευάλωτος πληθυσμός βρεφών/νηπίων· προτεραιότητα εκκένωσης.'},
+  {id:'DC2',name:'Β΄ Βρεφονηπιακός (όπισθεν 5ου Γυμνασίου)',cat:'daycare',lat:39.5595,lon:21.7545,status:'Δημοτικός βρεφονηπιακός',desc:'Πάροδος Καλαμπάκας / όπισθεν 5ου Γυμνασίου.'},
+  {id:'DC3',name:'Δ΄ Βρεφονηπιακός (Παλαιολόγου 24 — Μπάρα)',cat:'daycare',lat:39.5455,lon:21.7640,status:'Δημοτικός βρεφονηπιακός — περιοχή Μπάρας',desc:'Μπάρα: ιστορικά πλημμυρόπληκτη περιοχή όμβριων. Υψηλή προτεραιότητα.'},
+  {id:'DC4',name:'Γ΄ Παιδικός Σταθμός / Ηλιαχτίδα (Διογένους 11)',cat:'daycare',lat:39.5485,lon:21.7590,status:'Δημοτικός παιδικός + βρεφικός — Αγ. Μονή',desc:'Διογένους 11, Αγία Μονή. Συνδυασμός παιδικού και βρεφικού («Ηλιαχτίδα»).'},
+  {id:'DC5',name:'Ζ΄ Παιδικός Σταθμός (Μυροφύλλου 10 — Σεισμόπληκτα)',cat:'daycare',lat:39.5490,lon:21.7775,status:'Δημοτικός παιδικός — Σεισμόπληκτα',desc:'Μυροφύλλου 10, περιοχή Σεισμοπλήκτων.'},
+  {id:'DC6',name:'Παραμυθούπολη (βρεφικός — τέρμα Μυροφύλλου)',cat:'daycare',lat:39.5480,lon:21.7800,status:'Δημοτικός βρεφικός — Αγ. Οικουμένιος',desc:'Τέρμα οδού Μυροφύλλου, Αγ. Οικουμένιος.'},
+  {id:'DC7',name:'Κίτρινο Μπαλόνι (βρεφικός — Λογγάκι)',cat:'daycare',lat:39.5610,lon:21.7690,status:'Δημοτικός βρεφικός — Λογγάκι',desc:'Περιοχή Λογγάκι (κοντά σε Πυροσβεστική).'},
+  {id:'DC8',name:'Τρενάκι (βρεφικός — πλατεία Πούλιου)',cat:'daycare',lat:39.5525,lon:21.7680,status:'Δημοτικός βρεφικός — έναντι ΟΣΕ',desc:'Πλατεία Πούλιου, έναντι σιδηροδρομικού σταθμού.'},
+  {id:'DC9',name:'Στ΄ Βρεφικός (Εργατικά Πύργου)',cat:'daycare',lat:39.5400,lon:21.7500,status:'Δημοτικός βρεφικός — Εργατικά Πύργου',desc:'Εργατικές κατοικίες Πύργου.'},
+  {id:'DC10',name:'Παιδικός Σταθμός Μεγάλων Καλυβίων',cat:'daycare',lat:39.4980,lon:21.7845,status:'Δημοτικός παιδικός — Μεγάλα Καλύβια',desc:'Οικισμός βαριά πληγείς 2023. Κρίσιμος για βρέφη/νήπια.'},
+  {id:'DC11',name:'Παιδικός Σταθμός Βαλτινού («Αερόστατο»)',cat:'daycare',lat:39.5795,lon:21.7195,status:'Δημοτικός παιδικός — Βαλτινό',desc:'Βαλτινό Δήμου Τρικκαίων.'},
+  {id:'DC12',name:'Παιδικός Σταθμός Πρίνου («Ουράνιο Τόξο»)',cat:'daycare',lat:39.5900,lon:21.7000,status:'Δημοτικός παιδικός — Πρίνος',desc:'Πρίνος Δήμου Τρικκαίων.'},
+  {id:'DC13',name:'Παιδικός Σταθμός Ριζώματος',cat:'daycare',lat:39.6100,lon:21.6800,status:'Δημοτικός παιδικός — Ρίζωμα',desc:'Ρίζωμα Δήμου Τρικκαίων.'},
+  {id:'DC14',name:'Παιδικός Σταθμός Διαλεκτού (Φαλώρεια)',cat:'daycare',lat:39.6000,lon:21.6500,status:'Δημοτικός παιδικός — Διαλεκτό',desc:'Διαλεκτό / Φαλώρεια. Κοντά σε Πηνειό.'},
+  {id:'DC15',name:'Παιδικός Σταθμός Παλαιοπύργου',cat:'daycare',lat:39.5200,lon:21.6500,status:'Δημοτικός παιδικός — Παλαιόπυργος',desc:'Παλαιόπυργος Δήμου Τρικκαίων.'},
+  {id:'DC16',name:'Βρεφονηπιακός Μεγαλοχωρίου',cat:'daycare',lat:39.5300,lon:21.7200,status:'Δημοτικός βρεφονηπιακός — Μεγαλοχώρι',desc:'Μεγαλοχώρι Δήμου Τρικκαίων.'},
+  /* ---- ΚΔΑΠ Δήμου Τρικκαίων ---- */
+  {id:'DC17',name:'ΚΔΑΠ «Ομόνοια» (στο 10ο Δημοτικό)',cat:'daycare',lat:39.5625,lon:21.7755,status:'ΚΔΑΠ — τέρμα Μακεδονίας',desc:'Κέντρο Δημιουργικής Απασχόλησης Παιδιών 5–12 ετών. Στο 10ο Δημοτικό.'},
+  {id:'DC18',name:'ΚΔΑΠ «Φρούριο» (στο 1ο Δημοτικό)',cat:'daycare',lat:39.5568,lon:21.7689,status:'ΚΔΑΠ — Δερβενακίων & Ντάη',desc:'ΚΔΑΠ στο 1ο Δημοτικό Σχολείο.'},
+  {id:'DC19',name:'ΚΔΑΠ «Σταθμός» (στο 11ο Δημοτικό)',cat:'daycare',lat:39.5590,lon:21.7620,status:'ΚΔΑΠ — Σύρου 1',desc:'ΚΔΑΠ στο 11ο Δημοτικό / περιοχή σταθμού.'},
+  /* ---- Μονάδες φροντίδας ηλικιωμένων (κρίσιμες για εκκένωση) ---- */
+  {id:'H2',name:'Εκκλησιαστικό Γηροκομείο Αγ. Νικολάου Μεγάλων Καλυβίων',cat:'hospital',lat:39.4975,lon:21.7860,status:'Μονάδα φροντίδας ηλικιωμένων — Μεγάλα Καλύβια',desc:'Εκκλησιαστικό γηροκομείο σε οικισμό βαριά πληγέντα το 2023. Υψηλή προτεραιότητα εκκένωσης.'},
+  {id:'H3',name:'ΟΙΚΑΔΕ / Κλινική Οικονόμου (Καλαμπάκας)',cat:'hospital',lat:39.5600,lon:21.7500,status:'Μονάδα φροντίδας ηλικιωμένων — οδός Καλαμπάκας',desc:'Ιδιωτική μονάδα φροντίδας ηλικιωμένων / γηριατρική κλινική.'},
+  /* ---- Αντλιοστάσια όμβριων / κρίσιμα σημεία απορροής ---- */
+  {id:'U2',name:'Αντλιοστάσιο όμβριων Μακεδονίας / Καστρακίδου',cat:'utilities',lat:39.5620,lon:21.7760,status:'Αντλιοστάσιο όμβριων ΔΕΥΑΤ — κοντά 10ο Δημοτικό',desc:'Ανακουφίζει περιοχή 10ου Δημοτικού και παιδικών σταθμών σε έντονες βροχοπτώσεις.'},
+  {id:'U3',name:'Αντλιοστάσιο / αγωγός όμβριων Μπάρας → Μπαλκούρα',cat:'utilities',lat:39.5450,lon:21.7620,status:'Αντιπλημμυρικό έργο GWP-Med / Coca-Cola — Μπάρα',desc:'Νέος αγωγός απομάκρυνσης όμβριων από Μπάρα προς τάφρο Μπαλκούρας (παραδόθηκε 2024). Κρίσιμο σημείο.'},
+  {id:'U4',name:'ΔΕΥΑΤ — εργαστήριο / νέο αντλιοστάσιο Λάκμωνος',cat:'utilities',lat:39.5550,lon:21.7600,status:'Υποδομή ΔΕΥΑΤ — οδός Λάκμωνος',desc:'Εργαστήριο ποιότητας υδάτων και αντλιοστάσιο.'},
+  /* ---- Πανεπιστήμια / τριτοβάθμια (cat: schools) ---- */
+  {id:'UNI1',name:'Πανεπιστήμιο Θεσσαλίας — ΤΕΦΑΑ (Καρυές)',cat:'schools',lat:39.5258,lon:21.7757,status:'Τμήμα Επιστήμης Φυσικής Αγωγής και Αθλητισμού — Καρυές',desc:'Κύρια πανεπιστημιακή εγκατάσταση στα Τρίκαλα. Συγκρότημα Καρυών (~4 χλμ Ν. της πόλης). Ευάλωτος πληθυσμός φοιτητών· πιθανό σημείο συγκέντρωσης.'},
+  {id:'UNI2',name:'Πανεπιστήμιο Θεσσαλίας — Διαιτολογία & Διατροφολογία',cat:'schools',lat:39.5262,lon:21.7760,status:'Τμήμα Διαιτολογίας και Διατροφολογίας — Καρυές',desc:'Ίδιο συγκρότημα με ΤΕΦΑΑ στις Καρυές. Σχολή Επιστημών Φυσικής Αγωγής, Αθλητισμού και Διαιτολογίας.'},
+  {id:'UNI3',name:'ΣΜΥ — Σχολή Μονίμων Υπαξιωματικών',cat:'schools',lat:39.5555,lon:21.7580,status:'Στρατιωτική σχολή — Στρατόπεδο Καβράκου',desc:'Τσιτσάνη Βασίλη 63, εντός στρατοπέδου. Πληθυσμός σπουδαστών/στελεχών· επιχειρησιακά σημαντική εγκατάσταση.'},
+  /* ---- Στάδια / κλειστά γυμναστήρια / αθλητικά κέντρα ---- */
+  {id:'SP1',name:'Δημοτικό Στάδιο Τρικάλων «Χρ. Παπανικολάου – Σ. Σακοράφα»',cat:'sports',lat:39.5521,lon:21.7765,status:'Στάδιο ποδοσφαίρου & στίβου — Κατσιμήδου · χωρ. ~15.000',desc:'Έδρα Α.Ο. Τρίκαλα. Μεγάλη συγκέντρωση κοινού σε αγώνες/εκδηλώσεις. Δίπλα στο κλειστό Κατσιμήδου. Σημαντικό σημείο εκκένωσης/καταφυγής.'},
+  {id:'SP2',name:'Δημοτικό Κλειστό Γυμναστήριο Κατσιμήδου',cat:'sports',lat:39.5502,lon:21.7775,status:'Κλειστό γυμναστήριο — Κατσιμήδου 50 · χωρ. 2.500',desc:'Κύριο κλειστό της πόλης (μπάσκετ, βόλεϊ, εκδηλώσεις). Παραπλεύρως Δημοτικού Σταδίου. Πρόσφατη ενεργειακή αναβάθμιση.'},
+  {id:'SP3',name:'ΔΑΚ Μπάρας — Κλειστό Γυμναστήριο & Κολυμβητήριο',cat:'sports',lat:39.5455,lon:21.7615,status:'Δημοτικό Αθλητικό Κέντρο Μπάρας — κλειστό + πισίνα',desc:'Περιοχή Μπάρας (ιστορικά ευάλωτη σε όμβρια). Εναλλακτική έδρα όταν κλείνει το Κατσιμήδου. Υψηλή προτεραιότητα σε πλημμύρα.'},
+  {id:'SP4',name:'Εθνικό Αθλητικό Κέντρο Τρικάλων (ΟΑΚΑ Τρικάλων)',cat:'sports',lat:39.5680,lon:21.7420,status:'ΕΑΚ — 4ο χλμ. Τρικάλων–Καλαμπάκας · κλειστό + κολυμβητήριο',desc:'Κλειστό γυμναστήριο, κλειστό κολυμβητήριο, ανοιχτά γήπεδα. Χωρητικότητα ~800 στο κλειστό. Δυτικά της πόλης.'},
+  {id:'SP5',name:'Αθλητικό Κέντρο Πάρκου Αγίου Γεωργίου',cat:'sports',lat:39.5480,lon:21.7680,status:'Ανοιχτές εγκαταστάσεις — Πάρκο Αγ. Γεωργίου',desc:'Διάδρομος ταρτάν, γήπεδο ποδοσφαίρου, ανοιχτή πισίνα, τένις, μπάσκετ. Χώρος συγκέντρωσης πολιτών.'},
+  {id:'SP6',name:'Αθλητικό Κέντρο (πρώην Athletic Park Καρακούσης)',cat:'sports',lat:39.5750,lon:21.7350,status:'Πολλαπλά γήπεδα — 7ο χλμ. Τρικάλων–Καλαμπάκας',desc:'Γήπεδα ποδοσφαίρου 5×5/8×8, μπάσκετ, τένις, beach volley, διάδρομος. Χώρος Δήμου / ΕΝΕΕΓΥΛ.'},
+  {id:'SP7',name:'Κλειστό Γυμναστήριο Αγίου Θωμά (Δήμου)',cat:'sports',lat:39.5560,lon:21.7650,status:'Δημοτικό κλειστό — περιοχή Αγ. Θωμά',desc:'Μικρότερο δημοτικό κλειστό γυμναστήριο (αναφέρεται σε καταλόγους Δήμου).'},
+  {id:'SH1',name:'Καταφύγιο: Δημοτικό Στάδιο Τρικάλων',cat:'shelter',lat:39.5521,lon:21.7765,status:'Προτεραιότητα 1 — μεγάλος χώρος · χωρ. ~15.000',desc:'Κύριο σημείο συγκέντρωσης / προσωρινής στέγασης σε εκκένωση.'},
+  {id:'SH2',name:'Καταφύγιο: Κλειστό Κατσιμήδου',cat:'shelter',lat:39.5502,lon:21.7775,status:'Προτεραιότητα 1 — κλειστό · χωρ. 2.500',desc:'Στεγασμένος χώρος δίπλα στο στάδιο. Κατάλληλο για ευάλωτους πληθυσμούς.'},
+  {id:'SH3',name:'Καταφύγιο: ΔΑΚ Μπάρας (κλειστό)',cat:'shelter',lat:39.5455,lon:21.7615,status:'Προτεραιότητα 2 — περιοχή Μπάρας',desc:'Εναλλακτικό καταφύγιο δυτικά. Έλεγχος πρόσβασης — Μπάρα ιστορικά ευάλωτη.'},
+  {id:'SH4',name:'Καταφύγιο: ΕΑΚ / ΟΑΚΑ Τρικάλων',cat:'shelter',lat:39.5680,lon:21.7420,status:'Προτεραιότητα 2 — 4ο χλμ. Καλαμπάκας',desc:'Κλειστό + εγκαταστάσεις δυτικά της πόλης.'},
+  {id:'SH5',name:'Καταφύγιο: ΤΕΦΑΑ Καρυών (ΠΘ)',cat:'shelter',lat:39.5258,lon:21.7757,status:'Προτεραιότητα 2 — πανεπιστημιακό συγκρότημα',desc:'Μεγάλοι χώροι / αίθουσες στις Καρυές.'},
+  {id:'SH6',name:'Καταφύγιο: 1ο ΓΕΛ / συγκρότημα Κονδύλη',cat:'shelter',lat:39.5650,lon:21.7710,status:'Προτεραιότητα 3 — σχολικό συγκρότημα',desc:'Σχολικές αίθουσες ως προσωρινό καταφύγιο.'},
+  {id:'SH7',name:'Σημείο συγκέντρωσης: Δημαρχείο / κέντρο',cat:'shelter',lat:39.5550,lon:21.7665,status:'Προτεραιότητα 1 — διοίκηση / ενημέρωση',desc:'Σημείο συντονισμού Πολιτικής Προστασίας (ενδεικτική θέση).'},
+  {id:'U5',name:'Κεντρικό αντλιοστάσιο ύδρευσης ΔΕΥΑΤ',cat:'utilities',lat:39.5565,lon:21.7680,status:'Κρίσιμη υποδομή ύδρευσης — ΔΕΥΑΤ',desc:'Κεντρικό αντλιοστάσιο ύδρευσης (τηλ. βλαβών 24310 76715).'},
+  {id:'U6',name:'Αντλιοστάσιο λυμάτων Πυργετού',cat:'utilities',lat:39.5480,lon:21.7450,status:'Αντλιοστάσιο αποχέτευσης — Πυργετός',desc:'Αντλιοστάσιο λυμάτων Πυργετού.'},
+  {id:'U7',name:'Έξοδος όμβριων Μακεδονίας / Πάρκο Κυκλοφοριακής Αγωγής',cat:'utilities',lat:39.5630,lon:21.7770,status:'Κρίσιμο σημείο απορροής όμβριων',desc:'Έξοδος δικτύου όμβριων οδού Μακεδονίας (έργα ΔΕΥΑΤ μετά 2023).'},
+  {id:'U8',name:'Αγωγός όμβριων Ζηλευτής → Μπαλκούρα',cat:'utilities',lat:39.5465,lon:21.7680,status:'Δίδυμος αγωγός όμβριων — Ζηλευτή',desc:'Αγωγός προς τάφρο Μπαλκούρας.'},
+  {id:'U9',name:'Βιολογικός καθαρισμός ΔΕΥΑΤ',cat:'utilities',lat:39.5350,lon:21.7900,status:'Εγκατάσταση επεξεργασίας λυμάτων',desc:'Μονάδα βιολογικού καθαρισμού.'},
+  {id:'R3',name:'Άξονας διαφυγής: Ε.Ο. Τρικάλων–Καλαμπάκας',cat:'roads',lat:39.5650,lon:21.7400,status:'Κύρια έξοδος ΔΥΤΙΚΑ — Καλαμπάκα',desc:'Κρίσιμος άξονας εκκένωσης προς Δ.'},
+  {id:'R4',name:'Άξονας διαφυγής: Ε.Ο. Τρικάλων–Λάρισας',cat:'roads',lat:39.5550,lon:21.8200,status:'Κύρια έξοδος ΑΝΑΤΟΛΙΚΑ — Λάρισα',desc:'Κρίσιμος άξονας προς Λάρισα.'},
+  {id:'R5',name:'Άξονας διαφυγής: προς Καρδίτσα (Ε.Ο. 30)',cat:'roads',lat:39.5300,lon:21.7800,status:'Έξοδος ΝΟΤΙΑ — Καρδίτσα',desc:'Άξονας προς Καρδίτσα. Ευάλωτος σε κατάκλυση νοτίου πεδίου.'},
+  {id:'R6',name:'Χαμηλό σημείο: περιοχή Μπάρας / οδικό δίκτυο',cat:'roads',lat:39.5450,lon:21.7620,status:'Ιστορικά πλημμυρόπληκτη οδική ζώνη',desc:'Οδοί Μπάρας — προβλήματα όμβριων / Daniel.'},
+  {id:'R7',name:'Πρόσβαση Μεγάλων Καλυβίων',cat:'roads',lat:39.5000,lon:21.7850,status:'Κρίσιμη πρόσβαση οικισμού — πλημμύρισε 2023',desc:'Οδοί προς Μεγάλα Καλύβια. Αποκλεισμός στον Daniel.'},
+  {id:'HST1',name:'Daniel 2023: Μεγάλα Καλύβια (βαριά κατάκλυση)',cat:'history',lat:39.4985,lon:21.7860,status:'Ιστορικό — Σεπ. 2023 · εγκλωβισμοί',desc:'Εκτεταμένη κατάκλυση· ~40 άτομα σε σπίτια.'},
+  {id:'HST2',name:'Daniel 2023: Μπάρα (αστική κατάκλυση όμβριων)',cat:'history',lat:39.5450,lon:21.7630,status:'Ιστορικό — Σεπ. 2023 · αστική ζώνη',desc:'Μπάρα σαν λίμνη· κάτοικοι σε ταράτσες.'},
+  {id:'HST3',name:'Daniel 2023: Φαρκαδόνα / Κεραμίδι (εκκένωση)',cat:'history',lat:39.4800,lon:22.0700,status:'Ιστορικό — εκκένωση οικισμών Π.Ε.',desc:'Εκκενώσεις σε οικισμούς Π.Ε. Τρικάλων (αναφορά).'}
+];
+ const colors={hospital:'#ff0033',emergency:'#ff6600',schools:'#aa00ff',daycare:'#e11d8c',sports:'#0d9488',shelter:'#ca8a04',bridges:'#0088ff',roads:'#ff9900',utilities:'#9900ff',villages:'#00aa44',history:'#cc0000',stations:'#00aacc'};
+ const symbols={hospital:'✚',emergency:'★',schools:'▦',daycare:'👶',sports:'⚽',shelter:'⛺',bridges:'☰',roads:'↗',utilities:'⚡',villages:'⌂',history:'!',stations:'◉'};
+ const catLabels={hospital:'Νοσοκομείο / ΜΦΗ',emergency:'Έκτακτη ανάγκη',schools:'Σχολείο / Πανεπιστήμιο',daycare:'Σταθμός παιδιών',sports:'Στάδιο / Κλειστό',shelter:'Καταφύγιο / εκκένωση',bridges:'Γέφυρα',roads:'Δρόμος',utilities:'Ύδρευση / αντλιοστάσιο',villages:'Οικισμός',history:'Ιστορικό',stations:'Σταθμός'};
+ function iconSvg(cat){
+   // Inline SVG pictograms (white on colored pin)
+   var s = {
+     hospital: '<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M11 3h2v6h6v2h-6v6h-2v-6H5V9h6V3z"/></svg>',
+     emergency: '<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M12 2l2.4 7.2H22l-6 4.4 2.3 7.1L12 16.5 5.7 20.7 8 13.6 2 9.2h7.6L12 2z"/></svg>',
+     schools: '<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M12 3L1 9l4 2.2V17h2v-4.3L12 15l11-6-11-6zm0 10.5L5.5 10 12 6.5 18.5 10 12 13.5zM5 18h14v2H5z"/></svg>',
+     daycare: '<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><circle cx="12" cy="8" r="3.2"/><path d="M6 19c0-3.3 2.7-5 6-5s6 1.7 6 5v1H6v-1z"/><circle cx="5.5" cy="10.5" r="2"/><circle cx="18.5" cy="10.5" r="2"/></svg>',
+     bridges: '<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M2 17h20v2H2v-2zm2-3h2c0-2.2 1.8-4 4-4s4 1.8 4 4h2c0-3.3-2.7-6-6-6s-6 2.7-6 6zm12 0h2c0-2.2 1.8-4 4-4v-2c-3.3 0-6 2.7-6 6z"/></svg>',
+     roads: '<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M11 2h2v4h-2V2zm0 16h2v4h-2v-4zM4.9 5.3l1.4-1.4 2.8 2.8-1.4 1.4-2.8-2.8zm11 11l1.4-1.4 2.8 2.8-1.4 1.4-2.8-2.8zM2 11h4v2H2v-2zm16 0h4v2h-4v-2zM4.9 18.7l2.8-2.8 1.4 1.4-2.8 2.8-1.4-1.4zm11-11l2.8-2.8 1.4 1.4-2.8 2.8-1.4-1.4z"/></svg>',
+     utilities: '<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M13 2L4 14h7v8l9-12h-7V2z"/></svg>',
+     villages: '<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M12 3l9 8h-3v9h-4v-6H10v6H6v-9H3l9-8z"/></svg>',
+     history: '<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>',
+     stations: '<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2.1 2.1M16.9 16.9L19 19M19 5l-2.1 2.1M5 19l2.1-2.1"/></svg>',
+     sports: '<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z" fill="none" stroke="#fff" stroke-width="1.5"/><path d="M3 12h18" fill="none" stroke="#fff" stroke-width="1.5"/></svg>',
+     shelter: '<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M12 3l9 7h-3v9h-4v-5H10v5H6v-9H3l9-7z"/></svg>'
+   };
+   return s[cat] || '<svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><circle cx="12" cy="12" r="6"/></svg>';
+ }
+ function makeIcon(cat, ringColor){
+   var c = colors[cat] || '#38526b';
+   var ring = ringColor ? 'box-shadow:0 0 0 5px '+ringColor+',0 2px 10px rgba(0,0,0,.5);' : 'box-shadow:0 2px 10px rgba(0,0,0,.45);';
+   var html = '<div style="width:36px;height:36px;border-radius:10px;background:'+c+';border:3px solid #fff;'+ring+
+     'display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:0">'+iconSvg(cat)+'</div>';
+   return L.divIcon({className:'', html:html, iconSize:[36,36], iconAnchor:[18,18], popupAnchor:[0,-18]});
+ }
+ const markers=[];
+ points.forEach(function(p){
+   var m=L.marker([p.lat,p.lon],{icon:makeIcon(p.cat), riseOnHover:true});
+   m.bindPopup(popupBase(p));
+   markers.push({point:p,marker:m});
+ });
+ function updateInfra(){
+   var visibleCats=[]; document.querySelectorAll('.cat:checked').forEach(function(x){visibleCats.push(x.value);});
+   var q = (document.getElementById('pointSearch') && document.getElementById('pointSearch').value || '').trim().toLowerCase();
+   infra.clearLayers();
+   markers.forEach(function(o){
+     if(visibleCats.indexOf(o.point.cat)<0) return;
+     if(q && o.point.name.toLowerCase().indexOf(q)<0 && o.point.id.toLowerCase().indexOf(q)<0 && (o.point.desc||'').toLowerCase().indexOf(q)<0) return;
+     if(filterInsideOnly){
+       var r = results[o.point.id];
+       var inside = r && ((r['50']&&r['50'].inside) || (r['100']&&r['100'].inside) || (r['1000']&&r['1000'].inside));
+       if(!inside) return;
+     }
+     o.marker.addTo(infra);
+   });
+ }
+ document.getElementById('boundaryToggle').addEventListener('change',function(e){ e.target.checked?map.addLayer(muniLayer):map.removeLayer(muniLayer); });
+ document.getElementById('riverToggle').addEventListener('change',function(e){ e.target.checked?map.addLayer(river):map.removeLayer(river); });
+ document.getElementById('histFloodToggle').addEventListener('change',function(e){ e.target.checked?map.addLayer(histFlood):map.removeLayer(histFlood); });
+ document.getElementById('escapeToggle').addEventListener('change',function(e){ e.target.checked?map.addLayer(escapeLayer):map.removeLayer(escapeLayer); });
+ document.getElementById('infraToggle').addEventListener('change',function(e){ e.target.checked?map.addLayer(infra):map.removeLayer(infra); });
+ document.getElementById('hydroRiversToggle').addEventListener('change',function(e){
+   if(e.target.checked){
+     loadHydroNetwork();
+     if(!map.hasLayer(hydroNet)) map.addLayer(hydroNet);
+     // απόκρυψη διπλότυπου layer river αν και τα δύο ανοιχτά
+   } else {
+     if(map.hasLayer(hydroNet)) map.removeLayer(hydroNet);
+   }
+ });
+ document.getElementById('hydroOfficialToggle').addEventListener('change',function(e){
+   if(e.target.checked){ if(!map.hasLayer(hydroOfficial)) map.addLayer(hydroOfficial); }
+   else { if(map.hasLayer(hydroOfficial)) map.removeLayer(hydroOfficial); }
+ });
+ document.getElementById('floodToggle').addEventListener('change',function(){ updateFloodLayers(); updateDepthLayers(); updateVelLayers(); updateRiskLayers(); updateApsfr(); });
+
+ function updateDepthLayers(){
+   Object.keys(depthLayers).forEach(function(period){
+     var el = document.querySelector('.depthPeriod[value="'+period+'"]');
+     var on = el && el.checked && document.getElementById('floodToggle').checked;
+     if(on){ if(!map.hasLayer(depthLayers[period])) map.addLayer(depthLayers[period]); }
+     else { if(map.hasLayer(depthLayers[period])) map.removeLayer(depthLayers[period]); }
+   });
+ }
+ function updateVelLayers(){
+   Object.keys(velLayers).forEach(function(period){
+     var el = document.querySelector('.velPeriod[value="'+period+'"]');
+     var on = el && el.checked && document.getElementById('floodToggle').checked;
+     if(on){ if(!map.hasLayer(velLayers[period])) map.addLayer(velLayers[period]); }
+     else { if(map.hasLayer(velLayers[period])) map.removeLayer(velLayers[period]); }
+   });
+ }
+ function updateRiskLayers(){
+   Object.keys(riskLayers).forEach(function(period){
+     var el = document.querySelector('.riskPeriod[value="'+period+'"]');
+     var on = el && el.checked && document.getElementById('floodToggle').checked;
+     if(on){ if(!map.hasLayer(riskLayers[period])) map.addLayer(riskLayers[period]); }
+     else { if(map.hasLayer(riskLayers[period])) map.removeLayer(riskLayers[period]); }
+   });
+ }
+ function updateApsfr(){
+   var on = document.getElementById('apsfrToggle').checked;
+   if(on){ if(!map.hasLayer(apsfrLayer)) map.addLayer(apsfrLayer); }
+   else { if(map.hasLayer(apsfrLayer)) map.removeLayer(apsfrLayer); }
+ }
+ document.querySelectorAll('.floodPeriod').forEach(function(x){ x.addEventListener('change',updateFloodLayers); });
+ document.querySelectorAll('.depthPeriod').forEach(function(x){ x.addEventListener('change',updateDepthLayers); });
+ document.querySelectorAll('.velPeriod').forEach(function(x){ x.addEventListener('change',updateVelLayers); });
+ document.querySelectorAll('.riskPeriod').forEach(function(x){ x.addEventListener('change',updateRiskLayers); });
+ document.getElementById('apsfrToggle').addEventListener('change', updateApsfr);
+ document.querySelectorAll('.cat').forEach(function(x){ x.addEventListener('change',updateInfra); });
+ updateInfra(); // αρχικά καμία κατηγορία τσεκαρισμένη → κενός χάρτης σημείων
+ document.getElementById('zoomTrikala').addEventListener('click',function(){ map.fitBounds(muniLayer.getBounds(),{padding:[20,20]}); });
+ document.getElementById('showAll').addEventListener('click',function(){ map.fitBounds(L.latLngBounds(points.map(function(p){return [p.lat,p.lon];})).pad(0.25)); });
+ document.getElementById('resetBtn').addEventListener('click',function(){
+   map.fitBounds(municipalityBounds);
+   document.getElementById('boundaryToggle').checked=true;
+   document.getElementById('riverToggle').checked=true;
+   if(!map.hasLayer(river)) map.addLayer(river);
+   document.getElementById('infraToggle').checked=true;
+   if(!map.hasLayer(muniLayer)) map.addLayer(muniLayer);
+   document.getElementById('floodToggle').checked=false;
+   map.addLayer(river); map.addLayer(infra);
+   document.querySelectorAll('.cat').forEach(function(x){ x.checked=false; });
+   document.querySelectorAll('.floodPeriod').forEach(function(x){ x.checked = (x.value==='100'); });
+   updateInfra(); updateFloodLayers();
+ });
+ document.getElementById('exportBtn').addEventListener('click',function(){
+   var rows=[['id','name','category','latitude','longitude','status','description',
+     'ypen_T50','depth_max_m_T50','velocity_max_ms_T50',
+     'ypen_T100','depth_max_m_T100','velocity_max_ms_T100',
+     'ypen_T1000','depth_max_m_T1000','velocity_max_ms_T1000']];
+   function res(p,T){
+     var r=results[p.id]&&results[p.id][T];
+     if(!r||r.inside===null) return ['','',''];
+     if(!r.inside) return ['εκτός','',''];
+     return ['εντός', r.depth!==null?r.depth.toFixed(2):'', r.vel!==null?r.vel.toFixed(2):''];
+   }
+   points.forEach(function(p){ rows.push([p.id,p.name,p.cat,p.lat,p.lon,p.status,p.desc].concat(res(p,'50'),res(p,'100'),res(p,'1000'))); });
+   var csv='\ufeff'+rows.map(function(r){ return r.map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(';'); }).join('\r\n');
+   var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}), url=URL.createObjectURL(blob), a=document.createElement('a');
+   a.href=url; a.download='flood_risk_trikala_points_v0_39.csv'; a.click(); URL.revokeObjectURL(url);
+ });
+ document.getElementById('exportGeoBtn').addEventListener('click',function(){
+   var feats = points.map(function(p){
+     var props = {id:p.id, name:p.name, category:p.cat, status:p.status, description:p.desc};
+     ['50','100','1000'].forEach(function(T){
+       var r = results[p.id] && results[p.id][T];
+       if(r && r.inside!==null){
+         props['ypen_T'+T] = r.inside ? 'εντός' : 'εκτός';
+         if(r.depth!==null) props['depth_m_T'+T] = r.depth;
+         if(r.vel!==null) props['vel_ms_T'+T] = r.vel;
+       }
+     });
+     return {type:'Feature', geometry:{type:'Point', coordinates:[p.lon, p.lat]}, properties:props};
+   });
+   var gj = {type:'FeatureCollection', features:feats};
+   var blob=new Blob([JSON.stringify(gj,null,2)],{type:'application/geo+json'}), url=URL.createObjectURL(blob), a=document.createElement('a');
+   a.href=url; a.download='flood_risk_trikala_points_v0_39.geojson'; a.click(); URL.revokeObjectURL(url);
+ });
+ var filterInsideOnly = false;
+ document.getElementById('filterInsideBtn').addEventListener('click', function(){
+   filterInsideOnly = !filterInsideOnly;
+   this.style.background = filterInsideOnly ? '#b42318' : '';
+   this.style.color = filterInsideOnly ? '#fff' : '';
+   this.textContent = filterInsideOnly ? 'Εντός ζώνης ✓' : 'Εντός ζώνης';
+   updateInfra();
+ });
+ document.getElementById('pointSearch').addEventListener('input', function(){
+   var q = this.value.trim().toLowerCase();
+   if(!q){ updateInfra(); return; }
+   infra.clearLayers();
+   markers.forEach(function(o){
+     if(o.point.name.toLowerCase().indexOf(q)>=0 || o.point.id.toLowerCase().indexOf(q)>=0 || (o.point.desc||'').toLowerCase().indexOf(q)>=0){
+       o.marker.addTo(infra);
+     }
+   });
+ });
+ document.getElementById('pointSearch').addEventListener('keydown', function(e){
+   if(e.key==='Enter'){
+     var q = this.value.trim().toLowerCase();
+     var found = markers.filter(function(o){ return o.point.name.toLowerCase().indexOf(q)>=0; });
+     if(found.length){ map.setView([found[0].point.lat, found[0].point.lon], 16); found[0].marker.openPopup(); }
+   }
+ });
+ // ===== Σενάρια πλημμύρας: έλεγχος σημείων πάνω στα επίσημα επίπεδα ΥΠΕΝ (WMS GetFeatureInfo) =====
+ const FRIV = {'50':'el08_friv_0050_rev1','100':'el08_friv_0100_rev1','1000':'el08_friv_1000_rev1'};
+ const DMAX = {'50':'EL08_DMAX_0050','100':'EL08_DMAX_0100','1000':'EL08_DMAX_1000'};
+ const VMAX = {'50':'EL08_VMAX_0050','100':'EL08_VMAX_0100','1000':'EL08_VMAX_1000'};
+ const results = {};            // id -> {'50':{inside,depth,vel}, ...}
+ const halo = L.layerGroup().addTo(map);
+ const checkable = points.filter(function(p){ return p.cat!=='history'; });
+ var activeT = null, busy = false, anyFetchError = null;
+
+ function popupBase(p){
+   var mapImg = 'https://staticmap.openstreetmap.de/staticmap.php?center='+p.lat+','+p.lon+'&zoom=16&size=280x130&maptype=mapnik&markers='+p.lat+','+p.lon+',red-pushpin';
+   var osm = 'https://www.openstreetmap.org/?mlat='+p.lat+'&mlon='+p.lon+'#map=17/'+p.lat+'/'+p.lon;
+   var img = '<img src="'+mapImg+'" alt="Χάρτης θέσης" width="280" height="130" style="width:100%;max-width:280px;height:auto;border-radius:8px;border:1px solid #d5e0e9;display:block;margin:6px 0" loading="lazy">';
+   return '<b>'+p.name+'</b><br><span class="tag">'+p.status+'</span>'+
+     '<p style="margin:6px 0">'+p.desc+'</p>'+img+
+     '<small>Κωδικός: '+p.id+' · <a href="'+osm+'" target="_blank" rel="noopener">Άνοιγμα στο OSM ↗</a></small>';
+ }
+ function queryWms(layer, lat, lon){
+   var pt = map.options.crs.project(L.latLng(lat,lon)), d = 5;
+   var url = wmsBase+'?service=WMS&version=1.3.0&request=GetFeatureInfo&layers='+layer+'&query_layers='+layer+
+     '&styles=&info_format='+encodeURIComponent('application/json')+'&feature_count=5&crs=EPSG:3857'+
+     '&bbox='+[pt.x-d,pt.y-d,pt.x+d,pt.y+d].join(',')+'&width=101&height=101&i=50&j=50';
+   return fetch(url).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
+ }
+ function firstNumber(j){
+   var f=(j&&j.features)||[];
+   for(var i=0;i<f.length;i++){ var pr=f[i].properties||{}; for(var k in pr){ if(typeof pr[k]==='number' && isFinite(pr[k])) return pr[k]; } }
+   return null;
+ }
+ function checkPoint(p, T){
+   results[p.id] = results[p.id] || {};
+   return queryWms(FRIV[T], p.lat, p.lon).then(function(ext){
+     var inside = ((ext&&ext.features)||[]).length>0;
+     var res = {inside:inside, depth:null, vel:null};
+     results[p.id][T] = res;
+     if(!inside) return;
+     return Promise.all([
+       queryWms(DMAX[T], p.lat, p.lon).then(function(dj){
+         var v = firstNumber(dj); if(v!==null && v>0 && v<50) res.depth = v;
+       }).catch(function(){}),
+       queryWms(VMAX[T], p.lat, p.lon).then(function(vj){
+         var v = firstNumber(vj); if(v!==null && v>0 && v<50) res.vel = v;
+       }).catch(function(){})
+     ]);
+   }).catch(function(e){ anyFetchError = e; results[p.id][T] = {inside:null, depth:null, vel:null}; });
+ }
+ function runChecks(Ts){
+   if(busy) return Promise.resolve();
+   busy = true; anyFetchError = null;
+   var status = document.getElementById('scnStatus');
+   var chain = Promise.resolve();
+   Ts.forEach(function(T){
+     chain = chain.then(function(){
+       status.textContent = 'Έλεγχος σημείων για Τ='+T+' στο WMS του ΥΠΕΝ…';
+       return Promise.all(checkable.map(function(p){ return checkPoint(p,T); }));
+     });
+   });
+   return chain.then(function(){
+     busy = false; renderResults(Ts);
+   }).catch(function(){ busy=false; });
+ }
+ function cell(r){
+   if(!r || r.inside===null) return '<td style="text-align:center;color:#9aa5b1">—</td>';
+   if(!r.inside) return '<td style="text-align:center;color:#2f855a">εκτός</td>';
+   return '<td style="text-align:center;color:#b42318;font-weight:bold">εντός'+(r.depth!==null?'<br><span style="font-weight:normal;font-size:10px">βάθος ~'+r.depth.toFixed(1)+' μ.</span>':'')+(r.vel!==null?'<br><span style="font-weight:normal;font-size:10px">ταχ. ~'+r.vel.toFixed(1)+' μ/δ</span>':'')+'</td>';
+ }
+ function renderResults(Ts){
+   var status = document.getElementById('scnStatus'), box = document.getElementById('scnTable');
+   var known = 0; checkable.forEach(function(p){ Ts.forEach(function(T){ var r=results[p.id]&&results[p.id][T]; if(r&&r.inside!==null) known++; }); });
+   if(!known){
+     status.innerHTML = '<b style="color:#b42318">Δεν ήταν δυνατός ο αυτόματος έλεγχος</b> ('+(anyFetchError?String(anyFetchError.message||anyFetchError):'χωρίς απάντηση')+'). Ο διακομιστής του ΥΠΕΝ μπορεί να μην επιτρέπει ερωτήματα από τον περιηγητή (CORS) ή να μην υπάρχει σύνδεση. Τα επίσημα επίπεδα παραμένουν ορατά στον χάρτη για οπτικό έλεγχο.';
+     box.innerHTML = ''; return;
+   }
+   status.textContent = 'Αποτέλεσμα ελέγχου από επίσημα επίπεδα ΥΠΕΝ EL08 (1η αναθεώρηση)'+(anyFetchError?' — μερικά σημεία δεν απάντησαν (—).':'.');
+   var cols = ['50','100','1000'].filter(function(T){ return checkable.some(function(p){ return results[p.id]&&results[p.id][T]; }); });
+   var html = '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr style="background:#eef4f8"><th style="text-align:left;padding:3px 2px">Σημείο</th>'+cols.map(function(T){return '<th>Τ='+T+'</th>';}).join('')+'</tr>';
+   checkable.forEach(function(p){
+     html += '<tr style="border-bottom:1px solid #edf2f7"><td style="padding:3px 2px">'+p.name+'</td>'+cols.map(function(T){ return cell(results[p.id]&&results[p.id][T]); }).join('')+'</tr>';
+   });
+   box.innerHTML = html+'</table>';
+   applyResultsToMap();
+ }
+ function applyResultsToMap(){
+   halo.clearLayers();
+   markers.forEach(function(o){
+     var p = o.point, r = results[p.id];
+     var base = popupBase(p);
+     if(r){
+       base += '<hr style="border:0;border-top:1px solid #d9e2ec;margin:6px 0"><b>Έλεγχος ΥΠΕΝ EL08</b><br>';
+       ['50','100','1000'].forEach(function(T){
+         if(!r[T]) return;
+         var s = r[T].inside===null ? 'δεν ελέγχθηκε' : (r[T].inside ? 'εντός ζώνης'+(r[T].depth!==null?' · μέγ. βάθος ~'+r[T].depth.toFixed(1)+' μ.':'')+(r[T].vel!==null?' · μέγ. ταχύτητα ~'+r[T].vel.toFixed(1)+' μ/δ':'') : 'εκτός ζώνης');
+         base += 'Τ='+T+': '+s+'<br>';
+       });
+     }
+     o.marker.setPopupContent(base);
+     if(!r) return;
+     var col = null;
+     if(r['50'] && r['50'].inside) col = '#b42318';
+     else if(r['100'] && r['100'].inside) col = '#e87524';
+     else if(r['1000'] && r['1000'].inside) col = '#d4a017';
+     if(col) L.circleMarker([p.lat,p.lon],{radius:15,color:col,weight:3,fill:false,interactive:false}).addTo(halo);
+   });
+   updateHalo();
+ }
+ function updateHalo(){
+   var on = document.getElementById('haloToggle').checked;
+   if(on){ if(!map.hasLayer(halo)) map.addLayer(halo); } else if(map.hasLayer(halo)) map.removeLayer(halo);
+ }
+ function setScenario(T, severe){
+   activeT = T;
+   document.getElementById('floodToggle').checked = true;
+   document.querySelectorAll('.floodPeriod').forEach(function(x){ x.checked = (x.value===T); });
+   document.querySelectorAll('.depthPeriod').forEach(function(x){ x.checked = !!severe && x.value===T; });
+   document.querySelectorAll('.velPeriod,.riskPeriod').forEach(function(x){ x.checked = false; });
+   document.getElementById('apsfrToggle').checked = !!severe;
+   updateFloodLayers(); updateDepthLayers(); updateVelLayers(); updateRiskLayers(); updateApsfr();
+   document.querySelectorAll('.scn').forEach(function(b){ b.style.outline = (b.getAttribute('data-t')===T)?'2px solid #1769aa':'none'; });
+   if(!(results[checkable[0].id] && results[checkable[0].id][T])) runChecks([T]); else renderResults([T]);
+ }
+ document.querySelectorAll('.scn').forEach(function(b){
+   b.addEventListener('click', function(){ setScenario(b.getAttribute('data-t'), b.getAttribute('data-severe')==='1'); });
+ });
+ document.getElementById('scnCompare').addEventListener('click', function(){
+   var todo = ['50','100','1000'].filter(function(T){ return !(results[checkable[0].id] && results[checkable[0].id][T]); });
+   (todo.length ? runChecks(todo) : Promise.resolve()).then(function(){ renderResults(['50','100','1000']); });
+ });
+ document.getElementById('scnClear').addEventListener('click', function(){
+   Object.keys(results).forEach(function(k){ delete results[k]; });
+   halo.clearLayers(); activeT=null;
+   document.getElementById('scnTable').innerHTML='';
+   document.getElementById('scnStatus').textContent='Επίλεξε σενάριο για να εμφανιστούν οι ζώνες και να ελεγχθούν τα σημεία.';
+   document.querySelectorAll('.scn').forEach(function(b){ b.style.outline='none'; });
+   markers.forEach(function(o){ o.marker.setPopupContent(popupBase(o.point)); });
+ });
+ document.getElementById('haloToggle').addEventListener('change', updateHalo);
+
+ // ===== Επιχειρησιακή εικόνα (χειροκίνητη καταχώριση + μοντέλο βροχόπτωσης) =====
+ const OPS_KEY = 'trikala_ops_v2';
+ var ops = {level:0, done:{}, doneAt:{}, roads:{}, hospital:{access:'unknown',tep:false,gen:false,amb:false}, levels:[], pumps:[], log:[]};
+ try{ var _s=localStorage.getItem(OPS_KEY); if(_s){ var _o=JSON.parse(_s); Object.keys(_o).forEach(function(k){ ops[k]=_o[k]; }); } }catch(e){}
+ if(!ops.doneAt) ops.doneAt = {};
+ if(!ops.log) ops.log = [];
+ function saveOps(){ try{ localStorage.setItem(OPS_KEY, JSON.stringify(ops)); }catch(e){} }
+ function esc(s){ return String(s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+ function nowStr(){ return new Date().toLocaleString('el-GR',{timeZone:'Europe/Athens',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+ function addLog(text){ ops.log.push({t:nowStr(), text:text}); if(ops.log.length>80) ops.log=ops.log.slice(-80); saveOps(); renderLog(); }
+
+ // --- 1. Επίπεδα συναγερμού ---
+ const LEVELS = [
+  {n:1,name:'Παρακολούθηση',color:'#2f855a',actions:[
+   'Παρακολούθηση δελτίων ΕΜΥ / meteo.gr και μηνυμάτων 112',
+   'Έλεγχος καθαρότητας ρεμάτων, φρεατίων και κοίτης Ληθαίου',
+   'Έλεγχος διαθεσιμότητας αντλιών, γεννητριών και μηχανημάτων',
+   'Ενημέρωση υπευθύνων Πολιτικής Προστασίας του Δήμου']},
+  {n:2,name:'Επιφυλακή',color:'#d4a017',actions:[
+   'Ενεργοποίηση / σύγκληση του συντονιστικού οργάνου Πολιτικής Προστασίας του Δήμου',
+   'Ετοιμότητα συνεργείων και μηχανημάτων· προσωρινή τοποθέτηση αντλιών σε χαμηλά σημεία',
+   'Επιθεώρηση γεφυρών Ληθαίου και ευάλωτων διαβάσεων',
+   'Επικοινωνία με το Γενικό Νοσοκομείο για ετοιμότητα (γεννήτρια, πρόσβαση ΤΕΠ)',
+   'Έναρξη τακτικής καταγραφής στάθμης ποταμού και βροχόπτωσης']},
+  {n:3,name:'Συναγερμός',color:'#e87524',actions:[
+   'Αίτημα προς τις αρμόδιες αρχές για μήνυμα 112 στις πληττόμενες περιοχές',
+   'Κλείσιμο δρόμων / υπογείων διαβάσεων που κατακλύζονται',
+   'Επικοινωνία με τους κατοίκους χαμηλών περιοχών και οικισμών κοντά στον Πηνειό',
+   'Προετοιμασία χώρων προσωρινής φιλοξενίας',
+   'Συνεχής επικοινωνία με Πυροσβεστική, Αστυνομία, ΕΚΑΒ και Περιφέρεια']},
+  {n:4,name:'Έκτακτη ανάγκη',color:'#b42318',actions:[
+   'Εκκένωση περιοχών κατόπιν εντολής των αρμόδιων αρχών',
+   'Λειτουργία χώρων προσωρινής στέγασης και παροχή βασικών αναγκών',
+   'Συνεργασία με Π.Υ. για διάσωση / απεγκλωβισμό· ενημέρωση για εγκλωβισμένους',
+   'Διασφάλιση συνέχειας νοσοκομείου, ύδρευσης και ενέργειας',
+   'Καταγραφή ζημιών και ενημέρωση προϊσταμένων αρχών']}
+ ];
+ function renderLevels(){
+   var bw = document.getElementById('lvlButtons');
+   bw.innerHTML = '';
+   LEVELS.forEach(function(L){
+     var b = document.createElement('button'); b.type='button';
+     b.style.cssText = 'text-align:left;padding:8px;border-width:2px;border-color:'+L.color+';'+(ops.level===L.n?'background:'+L.color+';color:#fff;':'');
+     b.innerHTML = '<b>'+L.n+'</b> · '+L.name;
+     b.addEventListener('click', function(){ ops.level = (ops.level===L.n ? 0 : L.n); saveOps(); renderLevels(); });
+     bw.appendChild(b);
+   });
+   var pill = document.getElementById('alertPill'), box = document.getElementById('lvlActions');
+   var cur = LEVELS.filter(function(L){ return L.n===ops.level; })[0];
+   if(!cur){ pill.style.display='none'; box.innerHTML='<span class="muted">Δεν έχει επιλεγεί επίπεδο.</span>'; return; }
+   pill.style.display='block'; pill.style.borderColor=cur.color; pill.style.color='#fff'; pill.style.background=cur.color;
+   pill.textContent = 'Επίπεδο '+cur.n+' · '+cur.name+' (χειροκίνητο)';
+   box.innerHTML = '<b style="color:'+cur.color+'">Ενέργειες — '+esc(cur.name)+'</b>';
+   cur.actions.forEach(function(a,i){
+     var key='L'+cur.n+'_'+i, lab=document.createElement('label'); lab.style.margin='5px 0';
+     var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!!ops.done[key];
+     cb.addEventListener('change', function(){
+       ops.done[key]=cb.checked;
+       if(cb.checked){ ops.doneAt[key]=nowStr(); addLog('Επίπ. '+cur.n+': '+a); }
+       else { delete ops.doneAt[key]; }
+       saveOps(); renderLevels();
+     });
+     var sp=document.createElement('span');
+     sp.innerHTML = esc(a) + (ops.doneAt[key] ? ' <span class="muted" style="font-size:10.5px">· '+esc(ops.doneAt[key])+'</span>' : '');
+     lab.appendChild(cb); lab.appendChild(sp); box.appendChild(lab);
+   });
+ }
+ document.getElementById('lvlReset').addEventListener('click', function(){ ops.level=0; ops.done={}; ops.doneAt={}; saveOps(); renderLevels(); });
+
+ // --- Ημερολόγιο ενεργειών ---
+ function renderLog(){
+   var box = document.getElementById('logList');
+   if(!box) return;
+   if(!ops.log.length){ box.innerHTML='<span class="muted">Καμία καταχώριση.</span>'; return; }
+   box.innerHTML = ops.log.slice().reverse().map(function(r){
+     return '<div style="padding:3px 0;border-bottom:1px solid #edf2f7"><span class="muted">'+esc(r.t)+'</span> · '+esc(r.text)+'</div>';
+   }).join('');
+ }
+ document.getElementById('logAdd').addEventListener('click', function(){
+   var t = document.getElementById('logText').value.trim();
+   if(!t) return;
+   addLog(t); document.getElementById('logText').value='';
+ });
+ document.getElementById('logClear').addEventListener('click', function(){ if(confirm('Καθαρισμός όλου του ημερολογίου;')){ ops.log=[]; saveOps(); renderLog(); } });
+ document.getElementById('logText').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('logAdd').click(); });
+
+ // --- 2. Ζωντανά δεδομένα μοντέλου (βροχή + παροχή GloFAS) ---
+ const RAIN_SITES = [
+  {n:'Τρίκαλα (κέντρο)',lat:39.555,lon:21.767},
+  {n:'Μεγάλα Καλύβια',lat:39.498,lon:21.785},
+  {n:'Μεγάρχη',lat:39.6077,lon:21.6399}
+ ];
+ // Συντεταγμένες κοντά σε κοίτη για καλύτερη αντιπροσώπευση GloFAS (~5 km)
+ const DISCHARGE_SITES = [
+  {n:'Πηνειός (περιοχή Βαλομανδρίου)',lat:39.548,lon:21.70},
+  {n:'Πηνειός / Ληθαίος (κοντά πόλη)',lat:39.52,lon:21.78},
+  {n:'Πάμισος (Μεγάλα Καλύβια)',lat:39.50,lon:21.80},
+  {n:'Πηνειός (Διαλεχτό / ανάντη)',lat:39.60,lon:21.66}
+ ];
+ function sumRange(a,i0,i1){ var s=0; for(var i=Math.max(0,i0);i<Math.min(a.length,i1);i++){ s+= (a[i]||0); } return s; }
+ function loadRain(){
+   var out = document.getElementById('rainOut'); out.textContent = 'Φόρτωση…';
+   var url = 'https://api.open-meteo.com/v1/forecast?latitude='+RAIN_SITES.map(function(s){return s.lat;}).join(',')+
+     '&longitude='+RAIN_SITES.map(function(s){return s.lon;}).join(',')+
+     '&hourly=precipitation&past_days=1&forecast_days=2&timezone='+encodeURIComponent('Europe/Athens');
+   return fetch(url).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(j){
+     var arr = Array.isArray(j) ? j : [j];
+     var nowKey = new Date().toLocaleString('sv-SE',{timeZone:'Europe/Athens'}).slice(0,13).replace(' ','T');
+     var html = '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr style="background:#eef4f8"><th style="text-align:left;padding:3px 2px">Θέση</th><th>24ω πριν</th><th>επόμ. 24ω</th><th>επόμ. 48ω</th><th>μέγ. ανά ώρα</th></tr>';
+     arr.forEach(function(d,k){
+       var t = d.hourly.time, p = d.hourly.precipitation, idx = 0;
+       for(var i=0;i<t.length;i++){ if(t[i].slice(0,13) >= nowKey){ idx=i; break; } }
+       var past = sumRange(p, idx-24, idx), n24 = sumRange(p, idx, idx+24), n48 = sumRange(p, idx, idx+48);
+       var mx = 0; for(var q=idx;q<Math.min(p.length,idx+48);q++){ if((p[q]||0)>mx) mx=p[q]; }
+       html += '<tr style="border-bottom:1px solid #edf2f7"><td style="padding:3px 2px">'+esc(RAIN_SITES[k].n)+'</td><td style="text-align:center">'+past.toFixed(1)+'</td><td style="text-align:center">'+n24.toFixed(1)+'</td><td style="text-align:center">'+n48.toFixed(1)+'</td><td style="text-align:center">'+mx.toFixed(1)+'</td></tr>';
+     });
+     html += '</table><small style="display:block;margin-top:4px">mm · ενημέρωση '+new Date().toLocaleTimeString('el-GR',{timeZone:'Europe/Athens',hour:'2-digit',minute:'2-digit'})+'</small>';
+     out.innerHTML = html;
+   }).catch(function(e){
+     out.innerHTML = '<b style="color:#b42318">Αποτυχία φόρτωσης βροχόπτωσης</b> ('+esc(e.message||e)+').';
+   });
+ }
+ function loadDischarge(){
+   var out = document.getElementById('dischargeOut'); out.textContent = 'Φόρτωση…';
+   var promises = DISCHARGE_SITES.map(function(s){
+     var url = 'https://flood-api.open-meteo.com/v1/flood?latitude='+s.lat+'&longitude='+s.lon+
+       '&daily=river_discharge,river_discharge_mean,river_discharge_max&past_days=3&forecast_days=5&timezone='+encodeURIComponent('Europe/Athens');
+     return fetch(url).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(j){
+       return {site:s, data:j};
+     });
+   });
+   return Promise.all(promises).then(function(results){
+     var today = new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Athens'});
+     var html = '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr style="background:#eef4f8"><th style="text-align:left;padding:3px 2px">Θέση</th><th>χθες</th><th>σήμερα</th><th>αύριο</th><th>μέγ. 5ημ.</th></tr>';
+     results.forEach(function(res){
+       var t = res.data.daily.time, q = res.data.daily.river_discharge, qmax = res.data.daily.river_discharge_max || q;
+       var idx = 0;
+       for(var i=0;i<t.length;i++){ if(t[i] >= today){ idx=i; break; } }
+       var yest = (idx>0 && q[idx-1]!=null) ? q[idx-1].toFixed(1) : '—';
+       var nowv = (q[idx]!=null) ? q[idx].toFixed(1) : '—';
+       var tom = (q[idx+1]!=null) ? q[idx+1].toFixed(1) : '—';
+       var mx = 0;
+       for(var k=idx;k<Math.min(qmax.length,idx+5);k++){ if((qmax[k]||0)>mx) mx=qmax[k]; }
+       html += '<tr style="border-bottom:1px solid #edf2f7"><td style="padding:3px 2px">'+esc(res.site.n)+'</td><td style="text-align:center">'+yest+'</td><td style="text-align:center"><b>'+nowv+'</b></td><td style="text-align:center">'+tom+'</td><td style="text-align:center">'+mx.toFixed(1)+'</td></tr>';
+     });
+     html += '</table><small style="display:block;margin-top:4px">m³/s · μοντέλο GloFAS · ενημέρωση '+new Date().toLocaleTimeString('el-GR',{timeZone:'Europe/Athens',hour:'2-digit',minute:'2-digit'})+'</small>';
+     out.innerHTML = html;
+   }).catch(function(e){
+     out.innerHTML = '<b style="color:#b42318">Αποτυχία φόρτωσης παροχής</b> ('+esc(e.message||e)+').';
+   });
+ }
+ function loadLive(){
+   var st = document.getElementById('liveStatus');
+   st.textContent = 'Φόρτωση…';
+   Promise.all([loadRain(), loadDischarge()]).then(function(){
+     st.textContent = 'Τελευταία ενημέρωση: '+new Date().toLocaleTimeString('el-GR',{timeZone:'Europe/Athens',hour:'2-digit',minute:'2-digit'});
+   }).catch(function(){
+     st.textContent = 'Ολοκληρώθηκε με σφάλματα — δες τα τμήματα παρακάτω.';
+   });
+ }
+ document.getElementById('liveBtn').addEventListener('click', loadLive);
+ // Αυτόματη φόρτωση μία φορά μετά το άνοιγμα
+ setTimeout(function(){ try{ loadLive(); }catch(e){} }, 1200);
+
+ // --- 3. Στάθμη ποταμού (χειροκίνητη καταχώριση) ---
+ function renderLevelsLog(){
+   var box = document.getElementById('lvList');
+   if(!ops.levels.length){ box.innerHTML='<span class="muted">Καμία καταχώριση.</span>'; return; }
+   box.innerHTML = ops.levels.slice(-6).reverse().map(function(r){
+     return '<div style="padding:3px 0;border-bottom:1px solid #edf2f7"><b>'+esc(r.name)+'</b>: '+esc(r.val)+' μ. <span class="muted">· '+esc(r.t)+'</span></div>';
+   }).join('');
+ }
+ document.getElementById('lvAdd').addEventListener('click', function(){
+   var n = document.getElementById('lvName').value.trim(), v = document.getElementById('lvVal').value;
+   if(!n || v==='') return;
+   ops.levels.push({name:n,val:v,t:new Date().toLocaleString('el-GR',{timeZone:'Europe/Athens'})});
+   saveOps(); document.getElementById('lvVal').value=''; renderLevelsLog();
+ });
+
+ // --- 4. Δρόμοι / γέφυρες, 5. Νοσοκομείο ---
+ const ROAD_ST = {unknown:{t:'Άγνωστη',c:'#9aa5b1'},open:{t:'Ανοιχτός',c:'#2f855a'},limited:{t:'Περιορισμένη κυκλοφορία',c:'#e87524'},closed:{t:'Κλειστός',c:'#b42318'}};
+ const HOSP_ST = {unknown:{t:'Άγνωστη',c:'#9aa5b1'},ok:{t:'Πρόσβαση ΟΚ',c:'#2f855a'},limited:{t:'Περιορισμένη πρόσβαση',c:'#e87524'},cut:{t:'Αποκομμένο',c:'#b42318'}};
+ function markerFor(id){ var r=markers.filter(function(o){ return o.point.id===id; })[0]; return r; }
+ function ring(id, color){
+   var o = markerFor(id); if(!o) return;
+   o.marker.setIcon(makeIcon(o.point.cat, color || null));
+ }
+ function statusSelect(map_, cur, onchange){
+   var s = document.createElement('select'); s.style.cssText='padding:4px;border:1px solid #bcccdc;border-radius:6px;font-size:11px;max-width:140px';
+   Object.keys(map_).forEach(function(k){ var o=document.createElement('option'); o.value=k; o.textContent=map_[k].t; if(k===cur) o.selected=true; s.appendChild(o); });
+   s.addEventListener('change', function(){ onchange(s.value); }); return s;
+ }
+ function renderRoads(){
+   var box = document.getElementById('roadList'); box.innerHTML='';
+   points.filter(function(p){ return p.cat==='bridges' || p.cat==='roads'; }).forEach(function(p){
+     var st = ops.roads[p.id] || 'unknown';
+     var row = document.createElement('div'); row.style.cssText='display:flex;gap:6px;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:11px';
+     var nm = document.createElement('span'); nm.textContent = p.name;
+     row.appendChild(nm);
+     row.appendChild(statusSelect(ROAD_ST, st, function(v){ ops.roads[p.id]=v; saveOps(); ring(p.id, v==='unknown'?null:ROAD_ST[v].c); }));
+     box.appendChild(row);
+     ring(p.id, st==='unknown'?null:ROAD_ST[st].c);
+   });
+ }
+ function renderHospital(){
+   var box = document.getElementById('hospBox'); box.innerHTML='';
+   var h = ops.hospital;
+   var top = document.createElement('div'); top.style.cssText='display:flex;gap:6px;align-items:center;justify-content:space-between;font-size:11px';
+   var nm = document.createElement('span'); nm.innerHTML='<b>Γενικό Νοσοκομείο Τρικάλων</b>'; top.appendChild(nm);
+   top.appendChild(statusSelect(HOSP_ST, h.access, function(v){ h.access=v; saveOps(); ring('H1', v==='unknown'?null:HOSP_ST[v].c); }));
+   box.appendChild(top);
+   [['tep','ΤΕΠ λειτουργεί κανονικά'],['gen','Γεννήτρια / εφεδρική ισχύς διαθέσιμη'],['amb','Πρόσβαση ασθενοφόρων εξασφαλισμένη']].forEach(function(it){
+     var lab=document.createElement('label'); lab.style.margin='4px 0';
+     var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!!h[it[0]];
+     cb.addEventListener('change', function(){ h[it[0]]=cb.checked; saveOps(); });
+     var sp=document.createElement('span'); sp.textContent=it[1]; lab.appendChild(cb); lab.appendChild(sp); box.appendChild(lab);
+   });
+   ring('H1', h.access==='unknown'?null:HOSP_ST[h.access].c);
+ }
+
+ // --- 6. Αντλιοστάσια (ορίζονται από τον χρήστη) ---
+ const PUMP_ST = {unknown:{t:'Άγνωστη',c:'#9aa5b1'},ok:{t:'Λειτουργεί',c:'#2f855a'},fault:{t:'Βλάβη',c:'#b42318'},off:{t:'Εκτός λειτουργίας',c:'#e87524'}};
+ const pumpLayer = L.layerGroup().addTo(map);
+ function renderPumps(){
+   pumpLayer.clearLayers();
+   var box = document.getElementById('pumpList'); box.innerHTML='';
+   if(!ops.pumps.length) box.innerHTML='<span class="muted">Κανένα αντλιοστάσιο καταχωρισμένο.</span>';
+   ops.pumps.forEach(function(p){
+     var st = PUMP_ST[p.status] || PUMP_ST.unknown;
+     L.circleMarker([p.lat,p.lon],{radius:9,color:st.c,weight:4,fillColor:'#0e7490',fillOpacity:.95}).bindPopup('<b>Αντλιοστάσιο: '+esc(p.name)+'</b><br><span class="tag">'+esc(st.t)+'</span><p>Θέση καταχωρισμένη από τον χρήστη.</p>').addTo(pumpLayer);
+     var row=document.createElement('div'); row.style.cssText='display:flex;gap:6px;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #edf2f7;font-size:11px';
+     var nm=document.createElement('span'); nm.textContent=p.name; row.appendChild(nm);
+     row.appendChild(statusSelect(PUMP_ST, p.status, function(v){ p.status=v; saveOps(); renderPumps(); }));
+     var del=document.createElement('button'); del.type='button'; del.textContent='✕'; del.style.padding='3px 6px';
+     del.addEventListener('click', function(){ ops.pumps = ops.pumps.filter(function(x){ return x.id!==p.id; }); saveOps(); renderPumps(); });
+     row.appendChild(del); box.appendChild(row);
+   });
+ }
+ document.getElementById('pumpAdd').addEventListener('click', function(){
+   var btn = this; btn.textContent='Κάνε κλικ στον χάρτη…'; map.getContainer().style.cursor='crosshair';
+   map.once('click', function(e){
+     map.getContainer().style.cursor=''; btn.textContent='Προσθήκη αντλιοστασίου';
+     var name = window.prompt('Όνομα αντλιοστασίου:'); if(!name) return;
+     ops.pumps.push({id:Date.now(),name:name.trim(),lat:e.latlng.lat,lon:e.latlng.lng,status:'unknown'});
+     saveOps(); renderPumps();
+   });
+ });
+
+ renderLevels(); renderLevelsLog(); renderRoads(); renderHospital(); renderPumps(); renderLog();
+
+ setTimeout(function(){ map.invalidateSize(); }, 200);
+  } catch(err) {
+    showFallback('Σφάλμα κατά την αρχικοποίηση του χάρτη: '+(err && err.message ? err.message : String(err)));
+  }
+ }
+
+ // Load Leaflet from CDN (try two sources)
+ function loadScript(src, onload, onerror){
+   var s=document.createElement('script'); s.src=src; s.crossOrigin=''; s.onload=onload; s.onerror=onerror; document.head.appendChild(s);
+ }
+ loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', initMap, function(){
+   loadScript('https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js', initMap, function(){
+     showFallback('Αποτυχία φόρτωσης Leaflet από CDN. Χρειάζεται σύνδεση στο διαδίκτυο.');
+   });
+ });
+})();
+</script>
+<script>
+(function(){
+ /* Καρτέλες πάνελ — Σενάρια | Επιχειρ. | Επίπεδα | Στοιχεία */
+ var tabs=document.querySelectorAll('.tab'), panes=document.querySelectorAll('.pane');
+ function show(id){
+   if(!id) id='scen';
+   tabs.forEach(function(t){ t.setAttribute('aria-selected', t.getAttribute('data-tab')===id ? 'true':'false'); });
+   panes.forEach(function(p){
+     var on = (p.id==='pane-'+id);
+     p.hidden = !on;
+     if(on){ p.style.display=''; } else { p.style.display='none'; }
+   });
+   try{ sessionStorage.setItem('trTab', id); }catch(e){}
+ }
+ tabs.forEach(function(t){
+   t.addEventListener('click', function(ev){
+     ev.preventDefault();
+     show(t.getAttribute('data-tab'));
+   });
+ });
+ var saved=null; try{ saved=sessionStorage.getItem('trTab'); }catch(e){}
+ show(saved && document.getElementById('pane-'+saved) ? saved : 'scen');
+
+ /* Δείκτης επιπέδου συναγερμού στην κεφαλίδα */
+ var pill=document.getElementById('alertPill'), text=document.getElementById('gaugeText'), segs=document.querySelectorAll('.gauge-seg');
+ function sync(){
+   if(!pill || !text) return;
+   var m = pill.style.display!=='none' ? /Επίπεδο\s+(\d)\s*·\s*([^(]+)/.exec(pill.textContent||'') : null;
+   var n = m ? parseInt(m[1],10) : 0;
+   text.textContent = n ? (n+' · '+m[2].trim()) : 'δεν έχει οριστεί';
+   segs.forEach(function(s){ s.classList.toggle('on', parseInt(s.getAttribute('data-n'),10) <= n && n>0); });
+ }
+ if(pill){ try{ new MutationObserver(sync).observe(pill,{attributes:true,childList:true,characterData:true,subtree:true}); }catch(e){} }
+ sync();
+})();
+</script>
+</body></html>
